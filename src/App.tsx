@@ -130,7 +130,7 @@ function MediaCard({
         <span className="media-card-copy">
           <strong className="media-title">{item.title}</strong>
           <span className="media-meta">{item.year ?? "Année inconnue"}{item.status ? ` · ${item.status === "finished" ? "Terminé" : item.status === "current" ? "En cours" : item.status}` : ""}</span>
-          <span className="media-source">{"Original KOVA · lecture intégrée"}</span>
+          <span className="media-source">{item.provider === "mangadex" ? "MangaDex · chapitres autorisés" : "Original KOVA · lecture intégrée"}</span>
         </span>
       </button>
       <button
@@ -657,7 +657,7 @@ export default function App() {
       )}
 
       {selectedItem && (
-        <Modal title={selectedItem.title} subtitle={`${selectedItem.kind === "comics" ? "BD & comics" : selectedItem.kind === "manhwa" ? "Manhwa" : "Manga"} · ${selectedItem.year ?? "Année inconnue"} · Original KOVA`} onClose={() => { setSelectedItem(null); setReaderOpen(false); setReaderChapterPages([]); setReaderChapterId(""); setReaderError(""); }} wide>
+        <Modal title={selectedItem.title} subtitle={`${selectedItem.kind === "comics" ? "BD & comics" : selectedItem.kind === "manhwa" ? "Manhwa" : "Manga"} · ${selectedItem.year ?? "Année inconnue"} · ${selectedItem.provider === "mangadex" ? "MangaDex" : "Original KOVA"}`} onClose={() => { setSelectedItem(null); setReaderOpen(false); setReaderChapterPages([]); setReaderChapterId(""); setReaderError(""); }} wide>
           <div className="detail-layout">
             <div className="detail-cover">
               {selectedItem.cover ? <img src={selectedItem.cover} alt={`Couverture de ${selectedItem.title}`} /> : <span className="cover-placeholder"><BookOpen size={32} /><span>KOVA</span></span>}
@@ -670,7 +670,7 @@ export default function App() {
               {selectedItem.chapters?.length ? (
                 <>
                   <button className="secondary-button full-button" onClick={() => setReaderOpen((open) => !open)}><BookOpen size={17} /> {readerOpen ? "Fermer le lecteur" : "Lire le chapitre dans KOVA"} <ArrowRight size={16} /></button>
-                  <p className="modal-footnote">Contenu original KOVA. Seules les œuvres dont les droits de publication sont confirmés seront ajoutées au lecteur.</p>
+                  <p className="modal-footnote">{selectedItem.provider === "mangadex" ? "Pages servies par MangaDex. KOVA n’affiche que les identifiants préalablement autorisés dans sa configuration." : "Contenu original KOVA. Seules les œuvres dont les droits de publication sont confirmés seront ajoutées au lecteur."}</p>
                 </>
               ) : <p className="modal-footnote">Cette ancienne fiche n’est plus proposée à la lecture dans KOVA, car aucun chapitre autorisé n’est disponible.</p>}
             </div>
