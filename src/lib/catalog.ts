@@ -24,6 +24,8 @@ export type CatalogPage = {
 };
 
 const PAGE_SIZE = 18;
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const catalogCache = new Map<string, { expiresAt: number; page: CatalogPage }>();
 const KITSU_API = "https://kitsu.io/api/edge";
 const OPEN_LIBRARY_API = "https://openlibrary.org";
 
@@ -195,12 +197,29 @@ async function fetchComicsPage(
   };
 }
 
-export function fetchCatalog(
+export async function fetchCatalog(
   kind: CatalogKind,
   query: string,
   offset = 0,
   signal?: AbortSignal,
 ): Promise<CatalogPage> {
-  if (kind === "comics") return fetchComicsPage(query, offset, signal);
-  return fetchKitsuPage(kind, query, offset, signal);
+  const key = kind + "|" + query.trim().toLocaleLowerCase() + "|" + offset;
+  const cached = catalogCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) {
+    if (signal?.aborted) throw new DOMException("Request aborted", "AbortError");
+    return { ...cached.page, items: [...cached.page.items] };
+  }
+
+  const page = kind === "comics"
+    ? await fetchComicsPage(query, offset, signal)
+    : await fetchKitsuPage(kind, query, offset, signal);
+
+  if (!signal?.aborted) {
+    catalogCache.set(key, { expiresAt: Date.now() + CACHE_TTL_MS, page });
+    if (catalogCache.size > 100) {
+      const firstKey = catalogCache.keys().next().value;
+      if (firstKey) catalogCache.delete(firstKey);
+    }
+  }
+  return page;
 }
