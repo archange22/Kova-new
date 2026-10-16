@@ -475,6 +475,17 @@ export default function App() {
                   <button className="primary-button" onClick={() => goTo("explore")}><Compass size={17} /> Explorer le catalogue <ArrowRight size={17} /></button>
                   <button className="quiet-button" onClick={() => goTo("library")}><LibraryBig size={17} /> Ma bibliothèque</button>
                 </div>
+                <form className="hero-search" onSubmit={(event) => { event.preventDefault(); goTo("explore"); }}>
+                  <Search size={18} aria-hidden="true" />
+                  <input
+                    aria-label="Rechercher un manga, manhwa ou une BD"
+                    type="search"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Un titre en tête ? Recherche ici…"
+                  />
+                  <button type="submit" aria-label="Rechercher"><ArrowRight size={18} /></button>
+                </form>
                 <div className="hero-tags"><span>MANGA</span><span>MANHWA</span><span>BD & COMICS</span></div>
                 <div className="hero-trust"><ShieldCheck size={15} /> Catalogue informatif, liens vers les sources</div>
               </div>
