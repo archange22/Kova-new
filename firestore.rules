@@ -34,7 +34,7 @@ service cloud.firestore {
           && request.resource.data.title is string
           && request.resource.data.title.size() > 0
           && request.resource.data.title.size() <= 200
-          && request.resource.data.provider in ['kitsu', 'openlibrary', 'kova']
+          && request.resource.data.provider in ['kitsu', 'openlibrary', 'kova', 'mangadex']
           && request.resource.data.kind in ['manga', 'manhwa', 'comics']
           && request.resource.data.sourceUrl is string
           && request.resource.data.libraryStatus in [
