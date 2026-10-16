@@ -20,7 +20,7 @@ export type CatalogItem = {
   ageRating?: string;
   subtype?: string;
   sourceUrl: string;
-  chapters: ReadableChapter[];
+  chapters?: ReadableChapter[];
 };
 
 export type CatalogPage = {
