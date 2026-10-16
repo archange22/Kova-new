@@ -68,3 +68,6 @@ Le catalogue affiche des métadonnées fournies par des services tiers. Il ne t�
 - Le filtre adulte repose sur les classifications connues et ne constitue pas un contrôle parental complet.
 - La photo et la bannière sont des URLs externes, pas des fichiers téléversés dans Firebase Storage.
 - Les chapitres ne sont pas encore lus directement dans KOVA.
+
+
+Cloudflare Pages : `npm run build` puis sortie `dist`. Les routes de l'application sont gérées par `public/_redirects`.
