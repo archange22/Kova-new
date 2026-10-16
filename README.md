@@ -57,3 +57,6 @@ Le catalogue affiche des métadonnées fournies par des services tiers. Il n'est
 - Les réglages ne sont pas encore un système complet de contrôle parental; le filtre des catégories adultes reste appliqué dans les résultats Kitsu.
 - La bannière et la photo sont des URLs externes, pas des fichiers envoyés dans Firebase Storage.
 - Le build automatique est préparé dans GitHub Actions. Attends la fin de l'exécution pour confirmer son succès.
+
+
+Le workflow de validation vérifie la version courante du dépôt sur Node.js 22 avant toute mise en ligne.
