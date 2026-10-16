@@ -1,24 +1,26 @@
 # KOVA
 
-KOVA est une interface responsive en français pour découvrir des mangas, manhwas, bandes dessinées et comics, puis organiser une bibliothèque personnelle.
+KOVA est une interface mobile et ordinateur, en français, consacrée aux **mangas japonais et manhwas coréens**. Le catalogue provient directement de l'API publique MangaDex, et les chapitres disponibles en français ou en anglais s'ouvrent dans un lecteur intégré.
 
 ## Fonctionnalités
 
-- Accueil avec accès rapide aux catégories et recherche directe.
-- Catalogue manga/manhwa via Kitsu et BD/comics via Open Library.
-- Fiches avec couverture, résumé, statut et lien vers la source.
+- Recherche directe dans le catalogue MangaDex.
+- Fiches avec couverture, résumé, année et statut.
+- Catégories Manga et Manhwa uniquement.
+- Liste des chapitres disponibles en français ou en anglais.
+- Page de lecture dédiée avec navigation chapitre précédent/suivant.
+- Qualité Éco (images compressées) et HQ (images d'origine).
+- Crédit de MangaDex et du groupe de traduction affiché dans les fiches et le lecteur.
 - Authentification e-mail/mot de passe avec Firebase.
 - Profil : pseudonyme, bio, URL de photo et URL de bannière.
-- Bibliothèque privée synchronisée dans Firestore avec les états À lire, En cours, Terminé, En pause et Abandonné.
-- Règles Firestore limitant chaque profil et bibliothèque à son propriétaire.
-- Interface mobile/ordinateur, thème sombre violet.
-- GitHub Actions vérifie automatiquement le build de production.
+- Bibliothèque privée Firestore avec les états À lire, En cours, Terminé, En pause et Abandonné.
+- GitHub Actions vérifie le build après chaque push.
 
 ## Technologies
 
 - React + TypeScript + Vite
-- Firebase Authentication + Cloud Firestore
-- Kitsu API + Open Library Search/Covers API
+- API publique MangaDex et MangaDex@Home pour les pages des chapitres
+- Firebase Authentication + Cloud Firestore pour les comptes et la bibliothèque
 - Cloudflare Pages pour l'hébergement statique
 
 ## Développement local
@@ -28,29 +30,32 @@ npm install
 npm run dev
 ```
 
+Build de production :
+
+```sh
+npm run build
+```
+
 ## Configuration Cloudflare Pages
 
-Le projet est configuré pour **Cloudflare Pages**, pas Firebase Hosting :
+KOVA utilise **Cloudflare Pages**, pas Firebase Hosting :
 
-- Framework : Vite
 - Branche de production : `main`
 - Commande de build : `npm run build`
 - Répertoire de sortie : `dist`
 - Version Node conseillée : 22
-- Fichier Wrangler : `wrangler.toml`
+- Configuration Wrangler : `wrangler.toml`
 - Fallback SPA : `public/_redirects`
 
-Dans Cloudflare : Workers & Pages > créer/ouvrir le projet Pages > connecter le dépôt `archange22/Kova-new` > saisir les paramètres ci-dessus. Pour les variables d'environnement de build, configure si nécessaire les variables `VITE_FIREBASE_*` dans Settings > Variables and Secrets. Les valeurs client Firebase sont déjà configurées comme valeurs par défaut dans `src/lib/firebase.ts`, mais les domaines autorisés doivent quand même être configurés dans Firebase Authentication.
-
-Après chaque push sur `main`, Cloudflare Pages peut reconstruire et publier le site si l'intégration Git est activée. Le workflow GitHub Actions contrôle séparément le build. Le build réussi ne prouve pas à lui seul que le site a été déployé.
+Connecte le dépôt `archange22/Kova-new` au projet Cloudflare Pages et configure les variables `VITE_FIREBASE_*` si nécessaire. Les valeurs Firebase client ont des valeurs par défaut dans `src/lib/firebase.ts`; le domaine de production doit être autorisé dans Firebase Authentication.
 
 ## Firebase pour les comptes et la bibliothèque
 
-Firebase reste utilisé pour Auth et Firestore, **pas pour héberger le site**.
+Firebase sert à Auth et Firestore, **pas à héberger le site**.
 
-1. Dans Firebase Authentication, active Adresse e-mail / mot de passe.
-2. Dans les paramètres d'Authentication, ajoute le domaine Cloudflare Pages de production aux domaines autorisés.
-3. Publie les règles Firestore du fichier `firestore.rules` depuis la console Firebase, ou avec Firebase CLI :
+1. Active Adresse e-mail / mot de passe dans Firebase Authentication.
+2. Ajoute le domaine Cloudflare Pages aux domaines autorisés.
+3. Publie les règles Firestore mises à jour depuis la console Firebase ou avec Firebase CLI :
 
 ```sh
 firebase deploy --project kova-2026 --only firestore:rules
@@ -58,23 +63,20 @@ firebase deploy --project kova-2026 --only firestore:rules
 
 Le fichier `firebase.json` ne configure plus Firebase Hosting. Consulte [FIREBASE_SETUP.md](./FIREBASE_SETUP.md).
 
-## Droits de lecture
+## Utilisation de l'API MangaDex
 
-Le catalogue affiche des métadonnées fournies par des services tiers. Il ne télécharge ni ne republie les chapitres. Un futur lecteur intégré doit se limiter aux œuvres originales, au domaine public vérifié ou aux œuvres dont KOVA possède une autorisation de diffusion.
+KOVA interroge directement `https://api.mangadex.org` pour rechercher les séries et obtenir la liste de chapitres. Le lecteur utilise ensuite les URL temporaires renvoyées par MangaDex@Home; les images ne sont pas copiées dans le dépôt KOVA.
 
-## Limites actuelles
+Les classifications autres que **Safe** sont exclues. Les chapitres proposés sont filtrés sur le français et l'anglais, les liens de lecture externes et les chapitres sans pages étant ignorés.
 
-- La disponibilité des résultats et des couvertures dépend des APIs externes et de la connexion.
-- Le filtre adulte repose sur les classifications connues et ne constitue pas un contrôle parental complet.
-- La photo et la bannière sont des URLs externes, pas des fichiers téléversés dans Firebase Storage.
-- Les chapitres ne sont pas encore lus directement dans KOVA.
+MangaDex demande aux projets utilisant son API de créditer MangaDex et les groupes de traduction, de respecter les demandes de retrait, et de ne pas proposer de publicités ou de services payants. Voir la [politique officielle d'utilisation de l'API MangaDex](https://gitlab.com/mangadex-pub/mangadex-api-docs/-/blob/main/index.md). La présence d'un titre dans son catalogue n'est pas, à elle seule, une garantie que chaque traduction dispose de tous les droits de publication. Le projet doit respecter la politique de MangaDex et les retraits demandés par les groupes.
 
+## Limites
 
-Cloudflare Pages : `npm run build` puis sortie `dist`. Les routes de l'application sont gérées par `public/_redirects`.
+- Les résultats, les couvertures et les pages dépendent de l'API MangaDex, de ses limites de requêtes et de ta connexion Internet.
+- KOVA ne garantit pas que chaque titre ait des chapitres traduits.
+- Le filtre Safe s'appuie sur les classifications déclarées par MangaDex, qui ne remplacent pas la supervision parentale.
+- Photo de profil et bannière sont des URLs externes, pas des fichiers téléversés dans Firebase Storage.
+- Le build GitHub réussi ne prouve pas, à lui seul, que Cloudflare a terminé le déploiement.
 
-
-## MangaDex reader integration
-
-KOVA uses the public MangaDex API for manga metadata and chapter/page delivery, but the API does not establish publication or embedding rights for each title. To keep the in-site reader restricted to titles that KOVA has verified and is authorized to display, configure the Cloudflare Pages build environment variable `VITE_MANGADEX_ALLOWED_MANGA_IDS` as a comma-separated list of MangaDex title IDs only after obtaining/confirming permission for in-site display. Example format: `id-one,id-two` (replace with verified IDs; do not use this example literally).
-
-Without this allowlist, KOVA shows only its own original work. Do not add a title ID merely because it is available on MangaDex. After changing the variable, trigger a new Cloudflare Pages deployment.
+Cloudflare Pages construit avec `npm run build` et publie le dossier `dist`. Les routes de l'application sont gérées par `public/_redirects`.
