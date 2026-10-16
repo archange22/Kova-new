@@ -587,12 +587,8 @@ export default function App() {
         )}
 
         <section className="source-section page-section">
-          <div className="source-copy"><span className="section-kicker">LECTURE ET CRÉATEURS</span><h2>Découvrir. Soutenir.<br /><span>Lire au bon endroit.</span></h2><p>KOVA réunit les fiches et ta bibliothèque. Pour les chapitres, retrouve les œuvres sur les services qui ont le droit de les publier, ou suis les prochaines œuvres originales de KOVA.</p></div>
-          <div className="official-links">
-            <a href="https://mangaplus.shueisha.co.jp/" target="_blank" rel="noreferrer"><span className="official-icon">M+</span><span><strong>MANGA Plus</strong><small>Publications officielles de Shueisha</small></span><ExternalLink size={16} /></a>
-            <a href="https://www.webtoons.com/" target="_blank" rel="noreferrer"><span className="official-icon">W</span><span><strong>WEBTOON</strong><small>Webcomics et créations d’artistes</small></span><ExternalLink size={16} /></a>
-            <a href="https://globalcomix.com/" target="_blank" rel="noreferrer"><span className="official-icon">GC</span><span><strong>GlobalComix</strong><small>Comics et romans graphiques</small></span><ExternalLink size={16} /></a>
-          </div>
+          <div className="source-copy"><span className="section-kicker">LECTURE INTÉGRÉE</span><h2>Tout lire ici.<br /><span>Respecter les auteurs.</span></h2><p>Le catalogue KOVA ne présente que les œuvres dont les chapitres sont disponibles dans notre lecteur et dont les droits de publication sont confirmés. Le premier récit est un contenu original KOVA.</p></div>
+          <div className="official-links"><div className="official-reading-note"><span className="official-icon">K</span><span><strong>Œuvres originales</strong><small>Chapitres disponibles directement dans le lecteur KOVA</small></span><ShieldCheck size={16} /></div></div>
         </section>
       </main>
 
@@ -657,10 +653,22 @@ export default function App() {
               <p>{selectedItem.description || "Aucun résumé disponible pour cette fiche."}</p>
               <div className="detail-facts"><span><small>Statut</small><strong>{selectedItem.status || "Non renseigné"}</strong></span><span><small>Note catalogue</small><strong>{selectedItem.rating ? `${selectedItem.rating.toFixed(1)} / 5` : "Non renseignée"}</strong></span></div>
               <button className="primary-button full-button" onClick={() => void saveToLibrary(selectedItem)}>{savedIds.has(selectedItem.id) ? <Check size={17} /> : <Heart size={17} />}{savedIds.has(selectedItem.id) ? "Dans ma bibliothèque" : "Ajouter à ma bibliothèque"}</button>
-              <a className="secondary-button full-button" href={selectedItem.sourceUrl} target="_blank" rel="noreferrer">Ouvrir la fiche source <ExternalLink size={16} /></a>
-              <p className="modal-footnote">Cette fiche est issue d’un catalogue externe. Les chapitres ne sont pas hébergés par KOVA. Vérifie les services officiels disponibles dans ta région pour lire l’œuvre.</p>
+              <button className="secondary-button full-button" onClick={() => setReaderOpen((open) => !open)}><BookOpen size={17} /> {readerOpen ? "Fermer le lecteur" : "Lire le chapitre dans KOVA"} <ArrowRight size={16} /></button>
+              <p className="modal-footnote">Contenu original KOVA. Seules les œuvres dont les droits de publication sont confirmés seront ajoutées au lecteur.</p>
             </div>
           </div>
+          {readerOpen && (
+            <section className="kova-reader" aria-label="Lecteur KOVA">
+              {selectedItem.chapters.map((chapter, chapterIndex) => (
+                <article className="reader-chapter" key={`${selectedItem.id}-${chapterIndex}`}>
+                  <div className="reader-chapter-heading"><span className="section-kicker">LECTURE INTÉGRÉE · KOVA ORIGINAL</span><h3>{chapter.title}</h3></div>
+                  {chapter.pages.map((page, pageIndex) => (
+                    <div className="reader-page" key={`${chapter.title}-${pageIndex}`}><span className="reader-page-number">PAGE {String(pageIndex + 1).padStart(2, "0")}</span><p>{page}</p></div>
+                  ))}
+                </article>
+              ))}
+            </section>
+          )}
         </Modal>
       )}
       {loadingAuth && <div className="session-indicator">Vérification de la session…</div>}
