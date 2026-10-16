@@ -88,7 +88,7 @@ async function fetchApprovedMangaDex(signal?: AbortSignal): Promise<CatalogItem[
     if (!response.ok) return null;
     const json = await response.json();
     const manga = json.data;
-    if (!manga?.id || manga.attributes?.contentRating === "pornographic" || manga.attributes?.contentRating === "erotica") return null;
+    if (!manga?.id || ["pornographic", "erotica", "suggestive"].includes(manga.attributes?.contentRating)) return null;
 
     const chaptersResponse = await fetch(
       `${MANGADEX_API}/manga/${encodeURIComponent(id)}/feed?translatedLanguage[]=en&translatedLanguage[]=fr&order[chapter]=asc&limit=100&includes[]=scanlation_group`,
@@ -105,7 +105,7 @@ async function fetchApprovedMangaDex(signal?: AbortSignal): Promise<CatalogItem[
         seen.add(key);
         return true;
       })
-      .map((chapter: any) => ({
+      .slice(0, 30)\n      .map((chapter: any) => ({
         title: [chapter.attributes?.chapter ? `Chapitre ${chapter.attributes.chapter}` : "Chapitre spécial", chapter.attributes?.title].filter(Boolean).join(" · "),
         pages: [],
         mangaDexChapterId: chapter.id,
