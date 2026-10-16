@@ -1,27 +1,25 @@
 # KOVA
 
-KOVA est une interface responsive en français pour découvrir des mangas, manhwas, bandes dessinées et comics, puis garder une bibliothèque personnelle.
+KOVA est une interface responsive en français pour découvrir des mangas, manhwas, bandes dessinées et comics, puis organiser une bibliothèque personnelle.
 
-## Fonctionnalités actuelles
+## Fonctionnalités
 
-- Catalogue manga/manhwa via Kitsu.
-- Catalogue BD/comics via Open Library.
-- Recherche et filtres par type.
-- Fiches avec couverture, résumé, statut et lien vers la source de la fiche.
+- Accueil avec accès rapide aux catégories et recherche directe.
+- Catalogue manga/manhwa via Kitsu et BD/comics via Open Library.
+- Fiches avec couverture, résumé, statut et lien vers la source.
 - Authentification e-mail/mot de passe avec Firebase.
 - Profil : pseudonyme, bio, URL de photo et URL de bannière.
 - Bibliothèque privée synchronisée dans Firestore avec les états À lire, En cours, Terminé, En pause et Abandonné.
 - Règles Firestore limitant chaque profil et bibliothèque à son propriétaire.
-- Interface responsive mobile/ordinateur, avec thème sombre violet.
-- Action GitHub qui exécute le build de production.
+- Interface mobile/ordinateur, thème sombre violet.
+- GitHub Actions vérifie automatiquement le build de production.
 
 ## Technologies
 
 - React + TypeScript + Vite
-- Firebase Authentication
-- Cloud Firestore
-- Kitsu API
-- Open Library Search/Covers API
+- Firebase Authentication + Cloud Firestore
+- Kitsu API + Open Library Search/Covers API
+- Cloudflare Pages pour l'hébergement statique
 
 ## Développement local
 
@@ -30,33 +28,43 @@ npm install
 npm run dev
 ```
 
-## Contrôle de production
+## Configuration Cloudflare Pages
+
+Le projet est configuré pour **Cloudflare Pages**, pas Firebase Hosting :
+
+- Framework : Vite
+- Branche de production : `main`
+- Commande de build : `npm run build`
+- Répertoire de sortie : `dist`
+- Version Node conseillée : 22
+- Fichier Wrangler : `wrangler.toml`
+- Fallback SPA : `public/_redirects`
+
+Dans Cloudflare : Workers & Pages > créer/ouvrir le projet Pages > connecter le dépôt `archange22/Kova-new` > saisir les paramètres ci-dessus. Pour les variables d'environnement de build, configure si nécessaire les variables `VITE_FIREBASE_*` dans Settings > Variables and Secrets. Les valeurs client Firebase sont déjà configurées comme valeurs par défaut dans `src/lib/firebase.ts`, mais les domaines autorisés doivent quand même être configurés dans Firebase Authentication.
+
+Après chaque push sur `main`, Cloudflare Pages peut reconstruire et publier le site si l'intégration Git est activée. Le workflow GitHub Actions contrôle séparément le build. Le build réussi ne prouve pas à lui seul que le site a été déployé.
+
+## Firebase pour les comptes et la bibliothèque
+
+Firebase reste utilisé pour Auth et Firestore, **pas pour héberger le site**.
+
+1. Dans Firebase Authentication, active Adresse e-mail / mot de passe.
+2. Dans les paramètres d'Authentication, ajoute le domaine Cloudflare Pages de production aux domaines autorisés.
+3. Publie les règles Firestore du fichier `firestore.rules` depuis la console Firebase, ou avec Firebase CLI :
 
 ```sh
-npm run build
-npm run preview
+firebase deploy --project kova-2026 --only firestore:rules
 ```
 
-## Firebase Hosting
+Le fichier `firebase.json` ne configure plus Firebase Hosting. Consulte [FIREBASE_SETUP.md](./FIREBASE_SETUP.md).
 
-Le fichier `firebase.json` cible le dossier `dist`. Après connexion à Firebase CLI, publie le site et les règles avec :
+## Droits de lecture
 
-```sh
-firebase deploy --project kova-2026 --only hosting,firestore:rules
-```
+Le catalogue affiche des métadonnées fournies par des services tiers. Il ne télécharge ni ne republie les chapitres. Un futur lecteur intégré doit se limiter aux œuvres originales, au domaine public vérifié ou aux œuvres dont KOVA possède une autorisation de diffusion.
 
-Avant de publier, active le fournisseur e-mail/mot de passe dans Firebase Authentication et publie les règles Firestore. Consulte [FIREBASE_SETUP.md](./FIREBASE_SETUP.md).
+## Limites actuelles
 
-## Important : catalogue et droits d'auteur
-
-Le catalogue affiche des métadonnées fournies par des services tiers. Il n'est pas un dépôt de chapitres. Pour une lecture intégrée, KOVA doit utiliser des œuvres originales, des œuvres du domaine public après vérification des droits ou des contenus diffusés avec permission du détenteur des droits. Les liens vers les plateformes officielles sont des liens sortants, pas une garantie que chaque série y soit disponible.
-
-## Limites connues
-
-- La disponibilité des résultats et des couvertures dépend des APIs externes et de la connexion du navigateur.
-- Les réglages ne sont pas encore un système complet de contrôle parental; le filtre des catégories adultes reste appliqué dans les résultats Kitsu.
-- La bannière et la photo sont des URLs externes, pas des fichiers envoyés dans Firebase Storage.
-- Le build automatique est préparé dans GitHub Actions. Attends la fin de l'exécution pour confirmer son succès.
-
-
-Le workflow de validation vérifie la version courante du dépôt sur Node.js 22 avant toute mise en ligne.
+- La disponibilité des résultats et des couvertures dépend des APIs externes et de la connexion.
+- Le filtre adulte repose sur les classifications connues et ne constitue pas un contrôle parental complet.
+- La photo et la bannière sont des URLs externes, pas des fichiers téléversés dans Firebase Storage.
+- Les chapitres ne sont pas encore lus directement dans KOVA.
