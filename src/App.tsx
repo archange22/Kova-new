@@ -37,7 +37,7 @@ import {
   X,
 } from "lucide-react";
 import { auth, db } from "./lib/firebase";
-import { fetchCatalog } from "./lib/catalog";
+import { fetchCatalog, fetchMangaDexChapterPages } from "./lib/catalog";
 import type { CatalogItem, CatalogKind, CatalogPage } from "./lib/catalog";
 
 type Profile = {
@@ -411,6 +411,21 @@ export default function App() {
     }
   }
 
+  async function openMangaDexChapter(chapterId: string) {
+    setReaderLoading(true);
+    setReaderError("");
+    setReaderChapterPages([]);
+    setReaderChapterId(chapterId);
+    try {
+      const pages = await fetchMangaDexChapterPages(chapterId);
+      setReaderChapterPages(pages);
+    } catch (error) {
+      setReaderError(error instanceof Error ? error.message : "Impossible de charger ce chapitre.");
+    } finally {
+      setReaderLoading(false);
+    }
+  }
+
   async function loadMore() {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
@@ -642,7 +657,7 @@ export default function App() {
       )}
 
       {selectedItem && (
-        <Modal title={selectedItem.title} subtitle={`${selectedItem.kind === "comics" ? "BD & comics" : selectedItem.kind === "manhwa" ? "Manhwa" : "Manga"} · ${selectedItem.year ?? "Année inconnue"} · Original KOVA`} onClose={() => { setSelectedItem(null); setReaderOpen(false); }} wide>
+        <Modal title={selectedItem.title} subtitle={`${selectedItem.kind === "comics" ? "BD & comics" : selectedItem.kind === "manhwa" ? "Manhwa" : "Manga"} · ${selectedItem.year ?? "Année inconnue"} · Original KOVA`} onClose={() => { setSelectedItem(null); setReaderOpen(false); setReaderChapterPages([]); setReaderChapterId(""); setReaderError(""); }} wide>
           <div className="detail-layout">
             <div className="detail-cover">
               {selectedItem.cover ? <img src={selectedItem.cover} alt={`Couverture de ${selectedItem.title}`} /> : <span className="cover-placeholder"><BookOpen size={32} /><span>KOVA</span></span>}
@@ -662,7 +677,28 @@ export default function App() {
           </div>
           {readerOpen && selectedItem.chapters?.length && (
             <section className="kova-reader" aria-label="Lecteur KOVA">
-              {selectedItem.chapters.map((chapter, chapterIndex) => (
+              {selectedItem.provider === "mangadex" ? (
+                <div className="mangadex-reader">
+                  <div className="reader-chapter-heading"><span className="section-kicker">LECTURE INTÉGRÉE · MANGADEX</span><h3>Choisis un chapitre</h3><p>Les pages sont chargées depuis les serveurs MangaDex pour les titres autorisés par KOVA.</p></div>
+                  <div className="mangadex-chapter-list">
+                    {selectedItem.chapters.map((chapter, chapterIndex) => (
+                      <div className="mangadex-chapter-row" key={chapter.mangaDexChapterId ?? chapterIndex}>
+                        <span>{chapter.title}</span>
+                        <button className="secondary-button" onClick={() => chapter.mangaDexChapterId && void openMangaDexChapter(chapter.mangaDexChapterId)} disabled={!chapter.mangaDexChapterId || (readerLoading && readerChapterId === chapter.mangaDexChapterId)}>
+                          {readerLoading && readerChapterId === chapter.mangaDexChapterId ? "Chargement…" : "Lire"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  {readerError && <p className="reader-error">{readerError}</p>}
+                  {readerLoading && <LoadingState text="Chargement des pages du chapitre…" />}
+                  {readerChapterPages.length > 0 && (
+                    <div className="mangadex-pages">
+                      {readerChapterPages.map((pageUrl, pageIndex) => <img key={pageUrl} src={pageUrl} alt={`Page ${pageIndex + 1} du chapitre`} loading={pageIndex < 3 ? "eager" : "lazy"} />)}
+                    </div>
+                  )}
+                </div>
+              ) : selectedItem.chapters.map((chapter, chapterIndex) => (
                 <article className="reader-chapter" key={`${selectedItem.id}-${chapterIndex}`}>
                   <div className="reader-chapter-heading"><span className="section-kicker">LECTURE INTÉGRÉE · KOVA ORIGINAL</span><h3>{chapter.title}</h3></div>
                   {chapter.pages.map((page, pageIndex) => (
