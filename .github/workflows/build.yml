@@ -24,3 +24,5 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Build production site
         run: npm run build
+      - name: Validate Wrangler Worker assets config (dry run)
+        run: npx --yes wrangler@4.151.1 deploy --dry-run
