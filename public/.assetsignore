@@ -1,0 +1,4 @@
+# Cloudflare Pages-only metadata must not be served as a public file.
+_redirects
+_headers
+_worker.js
