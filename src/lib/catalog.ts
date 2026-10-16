@@ -105,7 +105,8 @@ async function fetchApprovedMangaDex(signal?: AbortSignal): Promise<CatalogItem[
         seen.add(key);
         return true;
       })
-      .slice(0, 30)\n      .map((chapter: any) => ({
+      .slice(0, 30)
+      .map((chapter: any) => ({
         title: [chapter.attributes?.chapter ? `Chapitre ${chapter.attributes.chapter}` : "Chapitre spécial", chapter.attributes?.title].filter(Boolean).join(" · "),
         pages: [],
         mangaDexChapterId: chapter.id,
