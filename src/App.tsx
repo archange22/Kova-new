@@ -627,7 +627,7 @@ export default function App() {
       {settingsOpen && (
         <Modal title="Réglages KOVA" subtitle="Les réglages utiles pour garder une expérience simple et sûre." onClose={() => setSettingsOpen(false)}>
           <div className="settings-list">
-            <div className="setting-row"><span className="setting-icon"><ShieldCheck size={18} /></span><span><strong>Filtre de contenu adulte</strong><small>Actif par défaut dans le catalogue connecté.</small></span><span className="setting-state">ACTIF</span></div>
+            <div className="setting-row"><span className="setting-icon"><ShieldCheck size={18} /></span><span><strong>Filtre de contenu adulte</strong><small>Les classifications adultes connues sont écartées des résultats.</small></span><span className="setting-state">ACTIF</span></div>
             <div className="setting-row"><span className="setting-icon"><LibraryBig size={18} /></span><span><strong>Bibliothèque synchronisée</strong><small>{user ? "Enregistrée dans ton compte Firebase." : "Connecte-toi pour retrouver tes séries."}</small></span><span className="setting-state">{user ? "EN LIGNE" : "HORS SESSION"}</span></div>
             <div className="setting-row"><span className="setting-icon"><UserRound size={18} /></span><span><strong>Données de profil</strong><small>Les champs restent privés selon les règles Firestore du compte.</small></span><span className="setting-state">PRIVÉ</span></div>
           </div>
