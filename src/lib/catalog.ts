@@ -1,5 +1,10 @@
 export type CatalogKind = "all" | "manga" | "manhwa" | "comics";
-export type MediaProvider = "kitsu" | "openlibrary";
+export type MediaProvider = "kova";
+
+export type ReadableChapter = {
+  title: string;
+  pages: string[];
+};
 
 export type CatalogItem = {
   id: string;
@@ -15,6 +20,7 @@ export type CatalogItem = {
   ageRating?: string;
   subtype?: string;
   sourceUrl: string;
+  chapters: ReadableChapter[];
 };
 
 export type CatalogPage = {
@@ -23,180 +29,40 @@ export type CatalogPage = {
   hasMore: boolean;
 };
 
+/**
+ * KOVA only lists works whose chapters are available in the built-in reader.
+ * This pilot is original text written for KOVA. Add future works here only
+ * after confirming that KOVA owns or has permission to publish every page.
+ */
+const ORIGINALS: CatalogItem[] = [
+  {
+    id: "kova-la-page-zero",
+    provider: "kova",
+    kind: "manga",
+    title: "KOVA : La Page Zéro",
+    alternateTitle: "Un récit original KOVA",
+    description: "Dans une ville où les souvenirs s'affichent comme des pages, Nao découvre un livre qui n'aurait jamais dû exister. Premier épisode original, lisible directement dans KOVA.",
+    year: 2026,
+    status: "En cours",
+    subtype: "original",
+    sourceUrl: "#lecture",
+    chapters: [
+      {
+        title: "Chapitre 1 · Le livre sans titre",
+        pages: [
+          "La pluie dessinait des lignes argentées sur les vitres de Néo-Kyoto. Nao rentrait tard, son sac trempé et son téléphone presque déchargé.",
+          "Au fond d'une ruelle, une lumière violette clignotait sous la porte d'une boutique oubliée. Sur la vitrine, une phrase était écrite à la main : « Les histoires perdues cherchent encore leurs lecteurs. »",
+          "La boutique était vide. Au centre d'une table reposait un livre noir, sans titre, sans auteur, sans poussière. Quand Nao posa la main dessus, toutes les lumières de la rue s'éteignirent.",
+          "Une page blanche se remplit lentement d'une phrase : « Nao, si tu lis ceci, c'est que la première porte est déjà ouverte. » Derrière lui, une serrure apparut dans le mur.",
+          "Nao recula d'un pas. La serrure brillait de la même lumière violette que le livre. Il inspira, tourna la clé qui venait d'apparaître dans sa paume et entendit, de l'autre côté, quelqu'un murmurer son nom.",
+          "Fin du chapitre 1. La suite arrivera lorsqu'un nouveau chapitre original sera publié par KOVA."
+        ],
+      },
+    ],
+  },
+];
+
 const PAGE_SIZE = 18;
-const CACHE_TTL_MS = 5 * 60 * 1000;
-const catalogCache = new Map<string, { expiresAt: number; page: CatalogPage }>();
-const KITSU_API = "https://kitsu.io/api/edge";
-const OPEN_LIBRARY_API = "https://openlibrary.org";
-
-type KitsuAttributes = {
-  titles?: Record<string, string | null | undefined>;
-  canonicalTitle?: string | null;
-  slug?: string | null;
-  synopsis?: string | null;
-  posterImage?: { tiny?: string; small?: string; medium?: string; large?: string } | null;
-  startDate?: string | null;
-  status?: string | null;
-  averageRating?: string | null;
-  ageRating?: string | null;
-  subtype?: string | null;
-  chapterCount?: number | null;
-  volumeCount?: number | null;
-};
-
-type KitsuPayload = {
-  data?: Array<{ id: string; attributes?: KitsuAttributes }>;
-  meta?: { count?: number };
-};
-
-type OpenLibraryDoc = {
-  key?: string;
-  title?: string;
-  author_name?: string[];
-  first_publish_year?: number;
-  cover_i?: number;
-  subject?: string[];
-};
-
-type OpenLibraryPayload = {
-  docs?: OpenLibraryDoc[];
-  numFound?: number;
-};
-
-function cleanDescription(value?: string | null) {
-  return (value ?? "Aucun résumé disponible pour le moment.")
-    .replace(/<[^>]*>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function mapKitsuTitle(id: string, attributes: KitsuAttributes): CatalogItem | null {
-  const subtype = (attributes.subtype ?? "manga").toLowerCase();
-  if (!["manga", "manhwa", "manhua", "oel", "doujin"].includes(subtype)) return null;
-
-  const type: CatalogItem["kind"] =
-    subtype === "manhwa" || subtype === "manhua" ? "manhwa" : "manga";
-  const titles = attributes.titles ?? {};
-  const title =
-    attributes.canonicalTitle ||
-    titles.en ||
-    titles.en_jp ||
-    Object.values(titles).find((candidate): candidate is string => Boolean(candidate)) ||
-    "Titre sans nom";
-  const alternateTitle = Object.values(titles).find(
-    (candidate): candidate is string => Boolean(candidate && candidate !== title),
-  );
-  const safeRating = attributes.averageRating ? Number(attributes.averageRating) / 20 : undefined;
-
-  return {
-    id: `kitsu-${id}`,
-    provider: "kitsu",
-    kind: type,
-    title,
-    alternateTitle,
-    description: cleanDescription(attributes.synopsis),
-    cover:
-      attributes.posterImage?.large ||
-      attributes.posterImage?.medium ||
-      attributes.posterImage?.small ||
-      attributes.posterImage?.tiny ||
-      undefined,
-    year: attributes.startDate ? Number(attributes.startDate.slice(0, 4)) || undefined : undefined,
-    status: attributes.status ?? undefined,
-    rating: safeRating && Number.isFinite(safeRating) ? safeRating : undefined,
-    ageRating: attributes.ageRating ?? undefined,
-    subtype,
-    sourceUrl: `https://kitsu.io/manga/${encodeURIComponent(attributes.slug || id)}`,
-  };
-}
-
-async function fetchKitsuPage(
-  kind: Exclude<CatalogKind, "comics">,
-  query: string,
-  offset: number,
-  signal?: AbortSignal,
-): Promise<CatalogPage> {
-  const params = new URLSearchParams({
-    sort: "popularityRank",
-    "page[limit]": String(PAGE_SIZE),
-    "page[offset]": String(offset),
-  });
-  if (query.trim()) params.set("filter[text]", query.trim());
-  if (kind === "manga" || kind === "manhwa") {
-    params.set("filter[subtype]", kind === "manga" ? "manga" : "manhwa");
-  }
-
-  const response = await fetch(`${KITSU_API}/manga?${params.toString()}`, {
-    signal,
-    headers: { Accept: "application/vnd.api+json" },
-  });
-  if (!response.ok) {
-    throw new Error(
-      response.status === 429
-        ? "Le catalogue reçoit trop de demandes. Attends un instant puis réessaie."
-        : "Le catalogue manga ne répond pas pour le moment.",
-    );
-  }
-
-  const payload = (await response.json()) as KitsuPayload;
-  const raw = payload.data ?? [];
-  const items = raw
-    .map((entry) => mapKitsuTitle(entry.id, entry.attributes ?? {}))
-    .filter((entry): entry is CatalogItem => entry !== null)
-    .filter((entry) => entry.ageRating !== "R" && entry.ageRating !== "R18");
-
-  const total = payload.meta?.count;
-  return {
-    items,
-    nextOffset: offset + raw.length,
-    hasMore: typeof total === "number" ? offset + raw.length < total : raw.length === PAGE_SIZE,
-  };
-}
-
-async function fetchComicsPage(
-  query: string,
-  offset: number,
-  signal?: AbortSignal,
-): Promise<CatalogPage> {
-  const params = new URLSearchParams({
-    subject: "Comics",
-    limit: String(PAGE_SIZE),
-    offset: String(offset),
-    fields: "key,title,author_name,first_publish_year,cover_i,subject",
-  });
-  if (query.trim()) params.set("q", query.trim());
-
-  const response = await fetch(`${OPEN_LIBRARY_API}/search.json?${params.toString()}`, {
-    signal,
-    headers: { Accept: "application/json" },
-  });
-  if (!response.ok) {
-    throw new Error("Le catalogue BD ne répond pas pour le moment.");
-  }
-
-  const payload = (await response.json()) as OpenLibraryPayload;
-  const docs = payload.docs ?? [];
-  const items = docs
-    .filter((doc): doc is OpenLibraryDoc & { key: string; title: string } => Boolean(doc.key && doc.title))
-    .filter((doc) => !(doc.subject ?? []).some((subject) => /adult|erotic|porn|sex(?:ual)?|mature/i.test(subject)))
-    .map((doc): CatalogItem => ({
-      id: `openlibrary-${doc.key.replace(/[^a-zA-Z0-9_-]/g, "-")}`,
-      provider: "openlibrary",
-      kind: "comics",
-      title: doc.title,
-      alternateTitle: doc.author_name?.slice(0, 2).join(", "),
-      description: doc.subject?.slice(0, 4).join(" · ") || "Fiche bibliographique issue d’Open Library.",
-      cover: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg` : undefined,
-      year: doc.first_publish_year,
-      sourceUrl: `${OPEN_LIBRARY_API}${doc.key}`,
-    }));
-
-  return {
-    items,
-    nextOffset: offset + docs.length,
-    hasMore: typeof payload.numFound === "number" ? offset + docs.length < payload.numFound : docs.length === PAGE_SIZE,
-  };
-}
 
 export async function fetchCatalog(
   kind: CatalogKind,
@@ -204,23 +70,18 @@ export async function fetchCatalog(
   offset = 0,
   signal?: AbortSignal,
 ): Promise<CatalogPage> {
-  const key = kind + "|" + query.trim().toLocaleLowerCase() + "|" + offset;
-  const cached = catalogCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) {
-    if (signal?.aborted) throw new DOMException("Request aborted", "AbortError");
-    return { ...cached.page, items: [...cached.page.items] };
-  }
-
-  const page = kind === "comics"
-    ? await fetchComicsPage(query, offset, signal)
-    : await fetchKitsuPage(kind, query, offset, signal);
-
-  if (!signal?.aborted) {
-    catalogCache.set(key, { expiresAt: Date.now() + CACHE_TTL_MS, page });
-    if (catalogCache.size > 100) {
-      const firstKey = catalogCache.keys().next().value;
-      if (firstKey) catalogCache.delete(firstKey);
-    }
-  }
-  return page;
+  if (signal?.aborted) throw new DOMException("Request aborted", "AbortError");
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const filtered = ORIGINALS.filter((item) => {
+    const matchesKind = kind === "all" || item.kind === kind;
+    const searchable = [item.title, item.alternateTitle, item.description].filter(Boolean).join(" ").toLocaleLowerCase();
+    return matchesKind && (!normalizedQuery || searchable.includes(normalizedQuery));
+  });
+  const items = filtered.slice(offset, offset + PAGE_SIZE);
+  const nextOffset = offset + items.length;
+  return {
+    items,
+    nextOffset,
+    hasMore: nextOffset < filtered.length,
+  };
 }
