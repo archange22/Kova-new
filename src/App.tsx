@@ -37,7 +37,7 @@ import {
   X,
 } from "lucide-react";
 import { auth, db } from "./lib/firebase";
-import { fetchCatalog, fetchMangaDexChapterPages } from "./lib/catalog";
+import { fetchCatalog, fetchMangaDexChapters, fetchMangaDexChapterPages } from "./lib/catalog";
 import type { CatalogItem, CatalogKind, CatalogPage } from "./lib/catalog";
 
 type Profile = {
@@ -51,13 +51,12 @@ type Profile = {
 type LibraryStatus = "to_read" | "reading" | "completed" | "paused" | "dropped";
 type LibraryEntry = CatalogItem & { libraryStatus: LibraryStatus };
 
-type Screen = "home" | "explore" | "library";
+type Screen = "home" | "explore" | "library" | "reader";
 
 const kindOptions: Array<{ value: CatalogKind; label: string }> = [
   { value: "all", label: "Tout" },
   { value: "manga", label: "Manga" },
   { value: "manhwa", label: "Manhwa" },
-  { value: "comics", label: "BD & comics" },
 ];
 
 const libraryStatusOptions: Array<{ value: LibraryStatus; label: string }> = [
@@ -125,12 +124,12 @@ function MediaCard({
             <span className="cover-placeholder"><BookOpen size={28} /><span>KOVA</span></span>
           )}
           <span className="cover-gradient" />
-          <span className="media-kind">{item.kind === "comics" ? "BD / COMICS" : item.kind.toUpperCase()}</span>
+          <span className="media-kind">{item.kind.toUpperCase()}</span>
         </span>
         <span className="media-card-copy">
           <strong className="media-title">{item.title}</strong>
           <span className="media-meta">{item.year ?? "Année inconnue"}{item.status ? ` · ${item.status === "finished" ? "Terminé" : item.status === "current" ? "En cours" : item.status}` : ""}</span>
-          <span className="media-source">{item.provider === "mangadex" ? "MangaDex · chapitres autorisés" : "Original KOVA · lecture intégrée"}</span>
+          <span className="media-source">Catalogue MangaDex</span>
         </span>
       </button>
       <button
@@ -162,6 +161,14 @@ export default function App() {
   const [library, setLibrary] = useState<LibraryEntry[]>([]);
   const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(null);
   const [readerOpen, setReaderOpen] = useState(false);
+  const [readerLoading, setReaderLoading] = useState(false);
+  const [readerError, setReaderError] = useState("");
+  const [readerChapterPages, setReaderChapterPages] = useState<string[]>([]);
+  const [readerChapterId, setReaderChapterId] = useState("");
+  const [readerChapterTitle, setReaderChapterTitle] = useState("");
+  const [readerQuality, setReaderQuality] = useState<"data" | "data-saver">("data-saver");
+  const [chapterListLoading, setChapterListLoading] = useState(false);
+  const [chapterListError, setChapterListError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -485,7 +492,7 @@ export default function App() {
               <div className="hero-copy">
                 <span className="eyebrow"><Sparkles size={14} /> TON UNIVERS, TON RYTHME</span>
                 <h1>Chaque page ouvre<br />un <span>nouveau monde.</span></h1>
-                <p>Découvre mangas, manhwas et BD, puis garde toutes tes lectures au même endroit.</p>
+                <p>Explore les mangas japonais et les manhwas coréens du catalogue MangaDex, puis lis les chapitres directement ici.</p>
                 <div className="hero-actions">
                   <button className="primary-button" onClick={() => goTo("explore")}><Compass size={17} /> Explorer le catalogue <ArrowRight size={17} /></button>
                   <button className="quiet-button" onClick={() => goTo("library")}><LibraryBig size={17} /> Ma bibliothèque</button>
@@ -501,8 +508,8 @@ export default function App() {
                   />
                   <button type="submit" aria-label="Rechercher"><ArrowRight size={18} /></button>
                 </form>
-                <div className="hero-tags"><span>MANGA</span><span>MANHWA</span><span>BD & COMICS</span></div>
-                <div className="hero-trust"><ShieldCheck size={15} /> Catalogue informatif, liens vers les sources</div>
+                <div className="hero-tags"><span>MANGA JAPONAIS</span><span>MANHWA CORÉEN</span><span>LECTEUR INTÉGRÉ</span></div>
+                <div className="hero-trust"><ShieldCheck size={15} /> Source : API MangaDex</div>
               </div>
               <div className="hero-art" aria-label="Aperçu du catalogue KOVA">
                 <div className="art-orbit orbit-one" /><div className="art-orbit orbit-two" />
@@ -524,7 +531,6 @@ export default function App() {
               <div className="category-grid">
                 <button className="category-card manga-card" onClick={() => chooseKind("manga")}><span className="category-symbol">漫</span><span className="category-copy"><strong>Mangas</strong><small>Histoires venues du Japon</small></span><ArrowDownRight className="category-arrow" size={22} /></button>
                 <button className="category-card manhwa-card" onClick={() => chooseKind("manhwa")}><span className="category-symbol">화</span><span className="category-copy"><strong>Manhwas</strong><small>Épisodes coréens en couleur</small></span><ArrowDownRight className="category-arrow" size={22} /></button>
-                <button className="category-card comics-card" onClick={() => chooseKind("comics")}><span className="category-symbol">BD</span><span className="category-copy"><strong>BD & comics</strong><small>Albums et romans graphiques</small></span><ArrowDownRight className="category-arrow" size={22} /></button>
               </div>
             </section>
 
@@ -548,7 +554,7 @@ export default function App() {
             <div className="explore-heading">
               <span className="section-kicker">LE GRAND CATALOGUE</span>
               <h1>Ton prochain coup de cœur<br /><span>est peut-être ici.</span></h1>
-              <p>Recherche des fiches de manga, manhwa et BD réunies dans une seule interface.</p>
+              <p>Recherche dans le catalogue MangaDex et ouvre les chapitres lisibles directement dans le lecteur KOVA.</p>
             </div>
             <div className="catalog-toolbar">
               <label className="search-field" htmlFor="catalog-search"><Search size={19} /><input id="catalog-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Titre, univers, mot-clé…" /><kbd>⌕</kbd></label>
@@ -558,7 +564,7 @@ export default function App() {
             </div>
             <div className="catalog-results-heading">
               <div><h2>{selectedKind === "all" ? "Tout le catalogue" : kindOptions.find((option) => option.value === selectedKind)?.label}</h2><span className="muted-caption">{query ? `Résultats pour « ${query} »` : "Une sélection alimentée par des catalogues publics"}</span></div>
-              <span className="catalog-provider">{selectedKind === "comics" ? "SOURCE · OPEN LIBRARY" : "SOURCE · KITSU"}</span>
+              <span className="catalog-provider">SOURCE · MANGADEX API</span>
             </div>
             {catalogLoading ? <LoadingState text="Recherche dans le catalogue…" /> : catalogError ? <ErrorState message={catalogError} onRetry={() => setRefreshIndex((value) => value + 1)} /> : (
               <>
@@ -566,7 +572,7 @@ export default function App() {
                 {hasMore && <div className="load-more-wrap"><button className="secondary-button" onClick={() => void loadMore()} disabled={loadingMore}>{loadingMore ? "Chargement…" : "Afficher plus de titres"} <ArrowRight size={16} /></button></div>}
               </>
             )}
-            <p className="catalog-note"><ShieldCheck size={16} /> Les fiches et couvertures sont fournies par leurs catalogues respectifs. KOVA ne republie pas les chapitres de séries protégées.</p>
+            <p className="catalog-note"><ShieldCheck size={16} /> Fiches, couvertures et chapitres viennent de MangaDex. KOVA affiche les crédits MangaDex et des groupes de traduction associés à chaque chapitre.</p>
           </section>
         )}
 
