@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -327,8 +327,9 @@ export default function App() {
     const status = existing?.libraryStatus ?? "to_read";
     const saved: LibraryEntry = { ...item, libraryStatus: status };
     try {
+      const safeEntry = Object.fromEntries(Object.entries(saved).filter(([, value]) => value !== undefined));
       await setDoc(doc(db, "users", user.uid, "library", docId), {
-        ...saved,
+        ...safeEntry,
         updatedAt: serverTimestamp(),
       }, { merge: true });
       setLibrary((current) => [saved, ...current.filter((entry) => getLibraryDocId(entry) !== docId)]);
@@ -679,7 +680,7 @@ function Modal({
   subtitle: string;
   onClose: () => void;
   wide?: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
