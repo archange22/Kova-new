@@ -593,3 +593,20 @@ main { width: min(1320px, calc(100% - 2 * clamp(18px, 5.5vw, 84px))); margin: 0 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+
+.mangadex-reader { max-width: 900px; margin: 0 auto; }
+.mangadex-reader .reader-chapter-heading p { max-width: 56ch; margin: 10px auto 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.mangadex-chapter-list { display: grid; gap: 8px; margin: 20px 0; }
+.mangadex-chapter-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.mangadex-chapter-row > span { font-size: 13px; line-height: 1.5; }
+.mangadex-chapter-row .secondary-button { flex: 0 0 auto; min-height: 36px; padding: 8px 12px; }
+.mangadex-pages { display: grid; justify-items: center; gap: 2px; margin-top: 22px; background: #050408; }
+.mangadex-pages img { display: block; width: 100%; max-width: 820px; height: auto; object-fit: contain; }
+.reader-error { padding: 12px 14px; border: 1px solid rgba(255,120,140,.35); border-radius: 12px; color: #ffb8c5; background: rgba(255,80,110,.07); font-size: 13px; }
+.mangadex-chapter-row button:disabled { opacity: .6; cursor: wait; }
+@media (max-width: 560px) {
+  .mangadex-chapter-row { align-items: flex-start; }
+  .mangadex-chapter-row > span { font-size: 12px; }
+  .mangadex-chapter-row .secondary-button { min-width: 64px; }
+}
