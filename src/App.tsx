@@ -1,12 +1,13 @@
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
-  User,
 } from "firebase/auth";
+import type { User } from "firebase/auth";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import {
   BookOpen, Compass, Heart, History, LibraryBig, LogIn, LogOut,
