@@ -645,3 +645,49 @@ main { width: min(1320px, calc(100% - 2 * clamp(18px, 5.5vw, 84px))); margin: 0 
   .reader-bottom-navigation > span { grid-column: 1 / -1; grid-row: 1; }
   .reader-bottom-navigation .secondary-button { min-height: 38px; padding: 7px 8px; font-size: 10px; }
 }
+
+
+/* KOVA polish: internal navigation and inline reader status */
+.footer-links button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: color .18s ease;
+}
+.footer-links button:hover { color: var(--purple); }
+.reader-in-site-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: right;
+}
+.reader-page-toolbar > .reader-in-site-label { justify-self: end; }
+.mangadex-chapter-row {
+  transition: background .18s ease, border-color .18s ease, transform .18s ease;
+}
+.mangadex-chapter-row:hover {
+  border-color: rgba(181,154,255,.35);
+  background: rgba(181,154,255,.06);
+}
+.mangadex-pages img {
+  background: #0b0911;
+}
+.full-reader-page .loading-panel,
+.full-reader-page .empty-panel {
+  max-width: 700px;
+  margin: 28px auto;
+}
+@media (max-width: 700px) {
+  .reader-page-toolbar > .reader-in-site-label {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+}
