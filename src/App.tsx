@@ -24,7 +24,6 @@ import {
   BookOpen,
   Check,
   Compass,
-  ExternalLink,
   Heart,
   LibraryBig,
   LogIn,
@@ -653,8 +652,12 @@ export default function App() {
               <p>{selectedItem.description || "Aucun résumé disponible pour cette fiche."}</p>
               <div className="detail-facts"><span><small>Statut</small><strong>{selectedItem.status || "Non renseigné"}</strong></span><span><small>Note catalogue</small><strong>{selectedItem.rating ? `${selectedItem.rating.toFixed(1)} / 5` : "Non renseignée"}</strong></span></div>
               <button className="primary-button full-button" onClick={() => void saveToLibrary(selectedItem)}>{savedIds.has(selectedItem.id) ? <Check size={17} /> : <Heart size={17} />}{savedIds.has(selectedItem.id) ? "Dans ma bibliothèque" : "Ajouter à ma bibliothèque"}</button>
-              <button className="secondary-button full-button" onClick={() => setReaderOpen((open) => !open)}><BookOpen size={17} /> {readerOpen ? "Fermer le lecteur" : "Lire le chapitre dans KOVA"} <ArrowRight size={16} /></button>
-              <p className="modal-footnote">Contenu original KOVA. Seules les œuvres dont les droits de publication sont confirmés seront ajoutées au lecteur.</p>
+              {selectedItem.chapters?.length ? (
+                <>
+                  <button className="secondary-button full-button" onClick={() => setReaderOpen((open) => !open)}><BookOpen size={17} /> {readerOpen ? "Fermer le lecteur" : "Lire le chapitre dans KOVA"} <ArrowRight size={16} /></button>
+                  <p className="modal-footnote">Contenu original KOVA. Seules les œuvres dont les droits de publication sont confirmés seront ajoutées au lecteur.</p>
+                </>
+              ) : <p className="modal-footnote">Cette ancienne fiche n’est plus proposée à la lecture dans KOVA, car aucun chapitre autorisé n’est disponible.</p>}
             </div>
           </div>
           {readerOpen && (
