@@ -160,7 +160,8 @@ export default function App() {
   const [catalogError, setCatalogError] = useState("");
   const [refreshIndex, setRefreshIndex] = useState(0);
   const [library, setLibrary] = useState<LibraryEntry[]>([]);
-  const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(null);\n  const [readerOpen, setReaderOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(null);
+  const [readerOpen, setReaderOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
