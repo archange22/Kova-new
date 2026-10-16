@@ -644,14 +644,14 @@ export default function App() {
                   <article className="library-card" key={entry.id}>
                     <button className="library-card-open" onClick={() => void openTitle(entry)}>
                       {entry.cover ? <img src={entry.cover} alt="" loading="lazy" /> : <span className="cover-placeholder"><BookOpen size={26} /></span>}
-                      <span className="library-card-main"><strong>{entry.title}</strong><small>{entry.kind === "comics" ? "BD & comics" : entry.kind === "manhwa" ? "Manhwa" : "Manga"}</small></span>
+                      <span className="library-card-main"><strong>{entry.title}</strong><small>{entry.kind === "manhwa" ? "Manhwa" : "Manga"}</small></span>
                     </button>
                     <label className="status-select-label">État de lecture
                       <select value={entry.libraryStatus} onChange={(event) => void changeLibraryStatus(entry, event.target.value as LibraryStatus)}>
                         {libraryStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                       </select>
                     </label>
-                    <div className="library-card-actions"><button className="small-outline" onClick={() => setSelectedItem(entry)}>Détails</button><button className="remove-link" onClick={() => void removeFromLibrary(entry)}>Retirer</button></div>
+                    <div className="library-card-actions"><button className="small-outline" onClick={() => void openTitle(entry)}>Détails</button><button className="remove-link" onClick={() => void removeFromLibrary(entry)}>Retirer</button></div>
                   </article>
                 ))}
               </div>
@@ -659,8 +659,7 @@ export default function App() {
           </section>
         )}
 
-        {screen !== "reader" && (
-          {screen === "reader" && (
+        {screen === "reader" && (
           <section className="full-reader-page" aria-label="Lecteur manga MangaDex">
             <div className="reader-page-toolbar">
               <button className="secondary-button" onClick={() => { setScreen("explore"); setReaderOpen(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}><ArrowRight className="reader-back-icon" size={16} /> Retour à la fiche</button>
@@ -691,11 +690,13 @@ export default function App() {
           </section>
         )}
 
-        <section className="source-section page-section">
-            <div className="source-copy"><span className="section-kicker">SOURCE UNIQUE</span><h2>Manga et manhwa.<br /><span>Propulsés par MangaDex.</span></h2><p>KOVA utilise l'API publique MangaDex pour rechercher les titres et charger les chapitres disponibles. Les crédits des groupes de traduction sont indiqués dans le lecteur.</p></div>
+        {screen !== "reader" && (
+          <section className="source-section page-section">
+            <div className="source-copy"><span className="section-kicker">SOURCE UNIQUE</span><h2>Manga et manhwa.<br /><span>Propulsés par MangaDex.</span></h2><p>KOVA utilise l'API publique MangaDex pour rechercher les titres et charger les chapitres disponibles. Les groupes de traduction sont crédités dans le lecteur.</p></div>
             <div className="official-links"><a className="official-reading-note" href="https://mangadex.org" target="_blank" rel="noreferrer"><span className="official-icon">M</span><span><strong>MangaDex</strong><small>Catalogue, API et chapitres</small></span><ArrowRight size={16} /></a></div>
           </section>
         )}
+
       </main>
 
       {screen !== "reader" && <footer className="site-footer">
@@ -744,7 +745,7 @@ export default function App() {
             <div className="setting-row"><span className="setting-icon"><LibraryBig size={18} /></span><span><strong>Bibliothèque synchronisée</strong><small>{user ? "Enregistrée dans ton compte Firebase." : "Connecte-toi pour retrouver tes séries."}</small></span><span className="setting-state">{user ? "EN LIGNE" : "HORS SESSION"}</span></div>
             <div className="setting-row"><span className="setting-icon"><UserRound size={18} /></span><span><strong>Données de profil</strong><small>Les champs restent privés selon les règles Firestore du compte.</small></span><span className="setting-state">PRIVÉ</span></div>
           </div>
-          <p className="modal-footnote">La lecture intégrée sera réservée aux œuvres originales de KOVA ou aux chapitres pour lesquels une autorisation a été obtenue.</p>
+          <p className="modal-footnote">KOVA crédite MangaDex et les groupes de traduction, respecte les demandes de retrait et ne doit pas ajouter de publicités ou de services payants au projet MangaDex.</p>
         </Modal>
       )}
 
