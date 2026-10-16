@@ -131,7 +131,7 @@ function MediaCard({
         <span className="media-card-copy">
           <strong className="media-title">{item.title}</strong>
           <span className="media-meta">{item.year ?? "Année inconnue"}{item.status ? ` · ${item.status === "finished" ? "Terminé" : item.status === "current" ? "En cours" : item.status}` : ""}</span>
-          <span className="media-source">{item.provider === "kitsu" ? "Catalogue Kitsu" : "Open Library"}</span>
+          <span className="media-source">{"Original KOVA · lecture intégrée"}</span>
         </span>
       </button>
       <button
@@ -161,7 +161,7 @@ export default function App() {
   const [catalogError, setCatalogError] = useState("");
   const [refreshIndex, setRefreshIndex] = useState(0);
   const [library, setLibrary] = useState<LibraryEntry[]>([]);
-  const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(null);
+  const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(null);\n  const [readerOpen, setReaderOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -599,7 +599,7 @@ export default function App() {
       <footer className="site-footer">
         <button className="brand footer-brand" onClick={() => goTo("home")}><span className="brand-mark">K</span><span>KOVA</span><span className="brand-dot">.</span></button>
         <span>Manga · Manhwa · BD & comics</span>
-        <div className="footer-links"><a href="https://kitsu.io/" target="_blank" rel="noreferrer">Kitsu</a><a href="https://openlibrary.org/" target="_blank" rel="noreferrer">Open Library</a><a href="https://mangaplus.shueisha.co.jp/" target="_blank" rel="noreferrer">Lecture officielle</a></div>
+        <div className="footer-links"><a href="#accueil">Accueil</a><a href="#accueil">Lectures originales KOVA</a></div>
         <span>© {new Date().getFullYear()} KOVA</span>
       </footer>
 
@@ -647,7 +647,7 @@ export default function App() {
       )}
 
       {selectedItem && (
-        <Modal title={selectedItem.title} subtitle={`${selectedItem.kind === "comics" ? "BD & comics" : selectedItem.kind === "manhwa" ? "Manhwa" : "Manga"} · ${selectedItem.year ?? "Année inconnue"} · ${selectedItem.provider === "kitsu" ? "Kitsu" : "Open Library"}`} onClose={() => setSelectedItem(null)} wide>
+        <Modal title={selectedItem.title} subtitle={`${selectedItem.kind === "comics" ? "BD & comics" : selectedItem.kind === "manhwa" ? "Manhwa" : "Manga"} · ${selectedItem.year ?? "Année inconnue"} · Original KOVA`} onClose={() => { setSelectedItem(null); setReaderOpen(false); }} wide>
           <div className="detail-layout">
             <div className="detail-cover">
               {selectedItem.cover ? <img src={selectedItem.cover} alt={`Couverture de ${selectedItem.title}`} /> : <span className="cover-placeholder"><BookOpen size={32} /><span>KOVA</span></span>}
