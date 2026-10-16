@@ -660,7 +660,7 @@ export default function App() {
               ) : <p className="modal-footnote">Cette ancienne fiche n’est plus proposée à la lecture dans KOVA, car aucun chapitre autorisé n’est disponible.</p>}
             </div>
           </div>
-          {readerOpen && (
+          {readerOpen && selectedItem.chapters?.length && (
             <section className="kova-reader" aria-label="Lecteur KOVA">
               {selectedItem.chapters.map((chapter, chapterIndex) => (
                 <article className="reader-chapter" key={`${selectedItem.id}-${chapterIndex}`}>
