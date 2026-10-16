@@ -610,3 +610,38 @@ main { width: min(1320px, calc(100% - 2 * clamp(18px, 5.5vw, 84px))); margin: 0 
   .mangadex-chapter-row > span { font-size: 12px; }
   .mangadex-chapter-row .secondary-button { min-width: 64px; }
 }
+
+
+/* Dedicated MangaDex reading page */
+.full-reader-page { width: 100%; min-height: calc(100vh - 76px); padding: 18px 0 44px; }
+.reader-page-toolbar { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 16px; padding: 0 0 18px; border-bottom: 1px solid var(--line); }
+.reader-page-toolbar > a { display: inline-flex; align-items: center; justify-content: center; gap: 7px; color: var(--purple); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.reader-back-icon { transform: rotate(180deg); }
+.reader-page-title { display: grid; min-width: 0; gap: 5px; text-align: center; }
+.reader-page-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 18px/1.3 "Space Grotesk", sans-serif; }
+.reader-page-title span { overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.reader-page-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; }
+.reader-page-controls span { color: var(--muted); font-size: 11px; }
+.full-reader-pages { margin: 0 auto; max-width: 920px; }
+.full-reader-pages img { max-width: 920px; }
+.reader-bottom-navigation { display: grid; grid-template-columns: minmax(0,1fr) minmax(130px,1.4fr) minmax(0,1fr); align-items: center; gap: 12px; margin: 20px auto 0; max-width: 920px; }
+.reader-bottom-navigation .secondary-button { min-height: 40px; padding: 8px 12px; font-size: 11px; }
+.reader-bottom-navigation > span { color: var(--muted); text-align: center; font-size: 10px; line-height: 1.5; }
+.reader-credit { margin: 18px auto 0; max-width: 920px; color: var(--muted); text-align: center; font-size: 11px; line-height: 1.65; }
+.reader-credit a { color: var(--purple); text-decoration: underline; text-underline-offset: 3px; }
+.chapter-attribution { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.reader-error { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.reader-error p { margin: 0; line-height: 1.5; }
+@media (max-width: 700px) {
+  .full-reader-page { padding-top: 12px; }
+  .reader-page-toolbar { grid-template-columns: auto minmax(0,1fr); gap: 10px; }
+  .reader-page-toolbar .secondary-button { min-height: 37px; padding: 7px 10px; font-size: 10px; }
+  .reader-page-title { text-align: right; }
+  .reader-page-title strong { font-size: 14px; }
+  .reader-page-title span { font-size: 10px; }
+  .reader-page-toolbar > a { grid-column: 1 / -1; justify-self: end; }
+  .reader-page-controls { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .reader-bottom-navigation { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .reader-bottom-navigation > span { grid-column: 1 / -1; grid-row: 1; }
+  .reader-bottom-navigation .secondary-button { min-height: 38px; padding: 7px 8px; font-size: 10px; }
+}
