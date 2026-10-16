@@ -3,36 +3,20 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 /**
- * KOVA Firebase client.
- * Set these Vite environment variables in your app's deployment settings.
- * Firebase web config values are public identifiers, not server secrets.
- * Protect data with Firebase Authentication and Firestore Security Rules.
+ * Configuration publique de l'application Web Firebase KOVA.
+ * Les variables VITE_* permettent de remplacer ces valeurs au besoin.
+ * La configuration client n'est pas une autorisation d'accès : les règles Firestore
+ * et les fournisseurs de connexion restent les vraies barrières de sécurité.
  */
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBxjVISUpPsX1V5VXCBT_fsdzg6IQN1JQs",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "kova-2026.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "kova-2026",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "kova-2026.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "784929153116",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:784929153116:web:043e2d76d42654e7fd8699",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-XWD49G9KMP",
 };
-
-const requiredConfig = [
-  ["VITE_FIREBASE_API_KEY", firebaseConfig.apiKey],
-  ["VITE_FIREBASE_AUTH_DOMAIN", firebaseConfig.authDomain],
-  ["VITE_FIREBASE_PROJECT_ID", firebaseConfig.projectId],
-  ["VITE_FIREBASE_APP_ID", firebaseConfig.appId],
-] as const;
-
-const missingConfig = requiredConfig
-  .filter(([, value]) => !value)
-  .map(([name]) => name);
-
-if (missingConfig.length) {
-  throw new Error(
-    `KOVA Firebase configuration is incomplete. Missing: ${missingConfig.join(", ")}`,
-  );
-}
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
