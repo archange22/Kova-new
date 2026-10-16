@@ -178,6 +178,7 @@ async function fetchComicsPage(
   const docs = payload.docs ?? [];
   const items = docs
     .filter((doc): doc is OpenLibraryDoc & { key: string; title: string } => Boolean(doc.key && doc.title))
+    .filter((doc) => !(doc.subject ?? []).some((subject) => /adult|erotic|porn|sex(?:ual)?|mature/i.test(subject)))
     .map((doc): CatalogItem => ({
       id: `openlibrary-${doc.key.replace(/[^a-zA-Z0-9_-]/g, "-")}`,
       provider: "openlibrary",
