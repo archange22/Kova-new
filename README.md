@@ -21,7 +21,7 @@ KOVA est une interface mobile et ordinateur, en français, consacrée aux **mang
 - React + TypeScript + Vite
 - API publique MangaDex et MangaDex@Home pour les pages des chapitres
 - Firebase Authentication + Cloud Firestore pour les comptes et la bibliothèque
-- Cloudflare Pages pour l'hébergement statique
+- Cloudflare Workers Static Assets pour l'hébergement statique sur `workers.dev`
 
 ## Développement local
 
@@ -36,25 +36,25 @@ Build de production :
 npm run build
 ```
 
-## Configuration Cloudflare Pages
+## Configuration Cloudflare Workers
 
-KOVA utilise **Cloudflare Pages**, pas Firebase Hosting :
+KOVA est déployé comme **Worker avec des fichiers statiques** (pas comme un projet Cloudflare Pages). Le build Vite génère le dossier `dist`, que Wrangler publie comme assets du Worker. Cette configuration conserve le déploiement sur le sous-domaine `workers.dev`.
+
+Dans Cloudflare, ouvre **Workers & Pages → KOVA → Settings → Builds** et utilise :
 
 - Branche de production : `main`
 - Commande de build : `npm run build`
-- Répertoire de sortie : `dist`
-- Version Node conseillée : 22
-- Configuration Wrangler : `wrangler.toml`
-- Fallback SPA : `public/_redirects`
+- Commande de déploiement : `npx wrangler deploy`
+- Nom du Worker : `kova` (il doit correspondre à `name` dans `wrangler.toml`)
 
-Connecte le dépôt `archange22/Kova-new` au projet Cloudflare Pages et configure les variables `VITE_FIREBASE_*` si nécessaire. Les valeurs Firebase client ont des valeurs par défaut dans `src/lib/firebase.ts`; le domaine de production doit être autorisé dans Firebase Authentication.
+Le fichier `wrangler.toml` indique le dossier `./dist` et active le fallback SPA afin que les routes React renvoient `index.html`. Le fichier Pages historique `public/_redirects` est exclu des assets publiés via `.assetsignore`.
 
 ## Firebase pour les comptes et la bibliothèque
 
 Firebase sert à Auth et Firestore, **pas à héberger le site**.
 
 1. Active Adresse e-mail / mot de passe dans Firebase Authentication.
-2. Ajoute le domaine Cloudflare Pages aux domaines autorisés.
+2. Ajoute le domaine de production Cloudflare (par exemple le sous-domaine `workers.dev`) aux domaines autorisés.
 3. Publie les règles Firestore mises à jour depuis la console Firebase ou avec Firebase CLI :
 
 ```sh
@@ -79,4 +79,4 @@ MangaDex demande aux projets utilisant son API de créditer MangaDex et les grou
 - Photo de profil et bannière sont des URLs externes, pas des fichiers téléversés dans Firebase Storage.
 - Le build GitHub réussi ne prouve pas, à lui seul, que Cloudflare a terminé le déploiement.
 
-Cloudflare Pages construit avec `npm run build` et publie le dossier `dist`. Les routes de l'application sont gérées par `public/_redirects`.
+Cloudflare Workers construit avec `npm run build`, puis `npx wrangler deploy` publie le dossier `dist` grâce à la configuration `[assets]` de `wrangler.toml`. Les routes SPA utilisent `not_found_handling = "single-page-application"`.
