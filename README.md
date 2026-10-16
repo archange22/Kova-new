@@ -71,3 +71,10 @@ Le catalogue affiche des métadonnées fournies par des services tiers. Il ne t�
 
 
 Cloudflare Pages : `npm run build` puis sortie `dist`. Les routes de l'application sont gérées par `public/_redirects`.
+
+
+## MangaDex reader integration
+
+KOVA uses the public MangaDex API for manga metadata and chapter/page delivery, but the API does not establish publication or embedding rights for each title. To keep the in-site reader restricted to titles that KOVA has verified and is authorized to display, configure the Cloudflare Pages build environment variable `VITE_MANGADEX_ALLOWED_MANGA_IDS` as a comma-separated list of MangaDex title IDs only after obtaining/confirming permission for in-site display. Example format: `id-one,id-two` (replace with verified IDs; do not use this example literally).
+
+Without this allowlist, KOVA shows only its own original work. Do not add a title ID merely because it is available on MangaDex. After changing the variable, trigger a new Cloudflare Pages deployment.
