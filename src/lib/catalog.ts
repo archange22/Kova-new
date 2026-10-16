@@ -111,7 +111,7 @@ function toCatalogItem(manga: MangaDexManga): CatalogItem | null {
   };
   const alternate = (attributes.altTitles ?? []).map(localizedValue).find(Boolean);
   return {
-    id: manga.id,
+    id: "mangadex-" + manga.id,
     provider: "mangadex",
     kind: language === "ko" ? "manhwa" : "manga",
     title: mangaTitle(manga),
@@ -176,7 +176,8 @@ export async function fetchMangaDexChapters(
   mangaId: string,
   signal?: AbortSignal,
 ): Promise<ReadableChapter[]> {
-  if (!/^[0-9a-f-]{36}$/i.test(mangaId)) {
+  const rawMangaId = mangaId.startsWith("mangadex-") ? mangaId.slice(9) : mangaId;
+  if (!/^[0-9a-f-]{36}$/i.test(rawMangaId)) {
     throw new Error("Identifiant MangaDex invalide.");
   }
   const params = new URLSearchParams();
@@ -201,7 +202,7 @@ export async function fetchMangaDexChapters(
       };
       relationships?: MangaDexRelationship[];
     }>;
-  }>(`/manga/${mangaId}/feed?${params.toString()}`, signal);
+  }>(`/manga/${rawMangaId}/feed?${params.toString()}`, signal);
 
   const seen = new Set<string>();
   return (response.data ?? [])
