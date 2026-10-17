@@ -466,8 +466,8 @@ export default function App() {
           setSupportOpen(true);
           setSupportTicketId("");
           setSupportMessages([]);
-          void loadSupportTickets();
         }
+        void loadSupportTickets();
       }
       lastResolvedPath.current = path;
       return;
