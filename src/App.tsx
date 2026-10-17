@@ -293,7 +293,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const requestId = ++catalogRequestId.current;
+    catalogRequestId.current += 1;
     const controller = new AbortController();
     let alive = true;
     setLoadingMore(false);
