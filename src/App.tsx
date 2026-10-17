@@ -58,7 +58,7 @@ type Screen = "home" | "explore" | "library" | "reader";
 const reservedRoutes = new Set(["connexion", "bibliotheque", "explorer", "chapitre"]);
 
 function slugify(value: string) {
-  return value.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase()
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
     .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
@@ -739,7 +739,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const path = routePath.replace(/\\/+$/, "") || "/";
+    const path = (routePath.length > 1 && routePath.endsWith("/") ? routePath.slice(0, -1) : routePath) || "/";
     if (path === "/connexion") {
       if (appliedRouteRef.current !== path) {
         setAuthMode("login");
