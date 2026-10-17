@@ -97,6 +97,10 @@ function isSupportAdmin(uid?: string | null) {
   return Boolean(uid && SUPPORT_ADMIN_UIDS.has(uid));
 }
 
+function getRoleForUid(uid: string): "user" | "admin" {
+  return uid === "fL5Gz1lTOUY11JRu14KHKcDD95q1" ? "admin" : "user";
+}
+
 function timestampMillis(value?: { toMillis?: () => number } | null) {
   return value && typeof value.toMillis === "function" ? value.toMillis() : 0;
 }
@@ -343,7 +347,7 @@ export default function App() {
             bio: "",
             photoURL: currentUser.photoURL || "",
             bannerURL: "",
-            role: currentUser.uid === "fL5Gz1lTOUY11JRu14KHKcDD95q1" ? "admin" : "user",
+            role: getRoleForUid(currentUser.uid),
           };
           await setDoc(profileRef, {
             uid: currentUser.uid,
@@ -453,7 +457,7 @@ export default function App() {
           bio: "",
           photoURL: "",
           bannerURL: "",
-          role: credential.user.uid === "fL5Gz1lTOUY11JRu14KHKcDD95q1" ? "admin" : "user",
+          role: getRoleForUid(credential.user.uid),
         };
         await setDoc(doc(db, "users", credential.user.uid), {
           uid: credential.user.uid,
@@ -501,7 +505,7 @@ export default function App() {
           bio: "",
           photoURL: googleUser.photoURL || "",
           bannerURL: "",
-          role: googleUser.uid === "fL5Gz1lTOUY11JRu14KHKcDD95q1" ? "admin" : "user",
+          role: getRoleForUid(googleUser.uid),
         };
         await setDoc(profileRef, {
           uid: googleUser.uid,
