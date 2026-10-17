@@ -195,6 +195,33 @@ function removeUndefinedDeep(value: unknown): unknown {
   return value;
 }
 
+async function imageFileToDataUrl(file: File, maxBytes = 180 * 1024): Promise<string> {
+  if (!file.type.startsWith("image/")) throw new Error("Choisis un fichier image.");
+  if (file.size > 12 * 1024 * 1024) throw new Error("Image trop lourde. Choisis une image de moins de 12 Mo.");
+  const source = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => { URL.revokeObjectURL(url); resolve(image); };
+    image.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Impossible de lire cette image.")); };
+    image.src = url;
+  });
+  const canvas = document.createElement("canvas");
+  const scale = Math.min(1, 1400 / Math.max(source.width, source.height));
+  canvas.width = Math.max(1, Math.round(source.width * scale));
+  canvas.height = Math.max(1, Math.round(source.height * scale));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Traitement d’image indisponible sur cet appareil.");
+  context.drawImage(source, 0, 0, canvas.width, canvas.height);
+  let quality = 0.82;
+  let output = canvas.toDataURL("image/jpeg", quality);
+  while (output.length * 0.75 > maxBytes && quality > 0.35) {
+    quality -= 0.1;
+    output = canvas.toDataURL("image/jpeg", quality);
+  }
+  if (output.length * 0.75 > maxBytes) throw new Error("Cette image reste trop lourde. Choisis une image plus simple.");
+  return output;
+}
+
 function validHttpUrl(value: string) {
   if (!value.trim()) return "";
   try {
@@ -618,13 +645,35 @@ export default function App() {
     setProfileOpen(true);
   }
 
+  async function handleImageFile(kind: "photoURL" | "bannerURL", file?: File) {
+    if (!file) return;
+    setNotice("");
+    try {
+      const dataUrl = await imageFileToDataUrl(file, 180 * 1024);
+      setProfileDraft((draft) => ({ ...draft, [kind]: dataUrl }));
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Impossible de traiter cette image.");
+    }
+  }
+
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!user) return;
-    const photoURL = validHttpUrl(profileDraft.photoURL);
-    const bannerURL = validHttpUrl(profileDraft.bannerURL);
+    const normalizeImage = (value: string) => {
+      if (!value.trim()) return "";
+      if (/^data:image\\/(jpeg|png|webp);base64,/i.test(value)) return value;
+      return validHttpUrl(value);
+    };
+    const photoURL = normalizeImage(profileDraft.photoURL);
+    const bannerURL = normalizeImage(profileDraft.bannerURL);
     if ((profileDraft.photoURL && !photoURL) || (profileDraft.bannerURL && !bannerURL)) {
-      setNotice("Les photos doivent utiliser une adresse HTTP ou HTTPS valide.");
+      setNotice("Utilise une URL HTTP(S) valide ou sélectionne une image depuis ton appareil.");
+      return;
+    }
+    if ((photoURL.startsWith("data:") && photoURL.length > 250000) ||
+        (bannerURL.startsWith("data:") && bannerURL.length > 250000) ||
+        (photoURL.startsWith("data:") && bannerURL.startsWith("data:") && photoURL.length + bannerURL.length > 430000)) {
+      setNotice("Les images sont trop volumineuses pour le profil. Réduis leur taille puis réessaie.");
       return;
     }
 
@@ -637,7 +686,11 @@ export default function App() {
         bannerURL,
         email: user.email || "",
       };
-      await updateProfile(user, { displayName: nextProfile.username, photoURL: photoURL || null });
+      // Firebase Auth accepts ordinary photo URLs, not embedded data URLs.
+      await updateProfile(user, {
+        displayName: nextProfile.username,
+        photoURL: photoURL && !photoURL.startsWith("data:") ? photoURL : null,
+      });
       await setDoc(doc(db, "users", user.uid), {
         uid: user.uid,
         ...nextProfile,
@@ -1290,16 +1343,23 @@ export default function App() {
       )}
 
       {profileOpen && user && (
-        <Modal title="Mon profil KOVA" subtitle="Personnalise ton espace. Les images restent hébergées à leur URL." onClose={() => setProfileOpen(false)}>
+        <Modal title="Mon profil KOVA" subtitle="Choisis une image sur ton téléphone ou colle une URL. Les fichiers sont compressés avant l’enregistrement." onClose={() => setProfileOpen(false)}>
           <form className="form-stack" onSubmit={saveProfile}>
             <label>Pseudonyme<input value={profileDraft.username} onChange={(event) => setProfileDraft((draft) => ({ ...draft, username: event.target.value }))} maxLength={30} placeholder="Ton pseudo" /></label>
             <label>À propos<textarea value={profileDraft.bio} onChange={(event) => setProfileDraft((draft) => ({ ...draft, bio: event.target.value }))} maxLength={180} rows={3} placeholder="Quelques mots sur tes lectures…" /></label>
-            <label>URL de la photo de profil<input value={profileDraft.photoURL} onChange={(event) => setProfileDraft((draft) => ({ ...draft, photoURL: event.target.value }))} type="url" placeholder="https://…" /></label>
-            <label>URL de la bannière<input value={profileDraft.bannerURL} onChange={(event) => setProfileDraft((draft) => ({ ...draft, bannerURL: event.target.value }))} type="url" placeholder="https://…" /></label>
+            <label>Photo de profil
+              <input type="file" accept="image/*" onChange={(event) => void handleImageFile("photoURL", event.target.files?.[0])} />
+              <input value={profileDraft.photoURL.startsWith("data:") ? "Image sélectionnée depuis l’appareil" : profileDraft.photoURL} onChange={(event) => setProfileDraft((draft) => ({ ...draft, photoURL: event.target.value }))} type="url" placeholder="Ou colle une URL https://…" />
+            </label>
+            <label>Bannière du profil
+              <input type="file" accept="image/*" onChange={(event) => void handleImageFile("bannerURL", event.target.files?.[0])} />
+              <input value={profileDraft.bannerURL.startsWith("data:") ? "Image sélectionnée depuis l’appareil" : profileDraft.bannerURL} onChange={(event) => setProfileDraft((draft) => ({ ...draft, bannerURL: event.target.value }))} type="url" placeholder="Ou colle une URL https://…" />
+            </label>
             <div className="profile-preview">
               {profileDraft.bannerURL && <img className="banner-preview" src={profileDraft.bannerURL} alt="Aperçu de la bannière" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
               <div className="profile-preview-row">{profileDraft.photoURL ? <img className="avatar avatar-large" src={profileDraft.photoURL} alt="" onError={(event) => { event.currentTarget.style.display = "none"; }} /> : <span className="avatar avatar-large">{(profileDraft.username || displayName).slice(0, 1).toUpperCase()}</span>}<span><strong>{profileDraft.username || displayName}</strong><small>{user.email}</small></span></div>
             </div>
+            <p className="modal-footnote">Images compressées en JPEG, environ 180 Ko maximum chacune. Évite les images privées.</p>
             <button className="primary-button full-button" type="submit" disabled={profileBusy}>{profileBusy ? "Enregistrement…" : "Enregistrer le profil"} <Check size={17} /></button>
           </form>
           <button className="logout-row" onClick={() => void handleSignOut()}><LogOut size={17} /> Se déconnecter</button>
