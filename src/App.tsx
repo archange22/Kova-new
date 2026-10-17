@@ -1109,7 +1109,7 @@ export default function App() {
       setSupportOpen(false);
       if (profileUid) {
         setPublicProfileLoading(true);
-        setPublicProfile(null);
+        setPublicProfile({ uid: profileUid, username: "Chargement…", bio: "", photoURL: "", bannerURL: "" });
         void (async () => {
           try {
             const [profileSnapshot, followersSnapshot, followingSnapshot] = await Promise.all([
