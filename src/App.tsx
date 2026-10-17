@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import {
   createUserWithEmailAndPassword,
@@ -147,6 +147,8 @@ function MediaCard({
 }
 
 export default function App() {
+  const chapterListRequestId = useRef(0);
+  const readerPagesRequestId = useRef(0);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile>({});
   const [loadingAuth, setLoadingAuth] = useState(true);
@@ -539,6 +541,8 @@ export default function App() {
   }
 
   async function openTitle(item: CatalogItem) {
+    const requestId = ++chapterListRequestId.current;
+    readerPagesRequestId.current += 1;
     setSelectedItem(item);
     setReaderOpen(false);
     setChapterListError("");
@@ -555,18 +559,21 @@ export default function App() {
 
     try {
       const chapters = await fetchMangaDexChapters(item.id);
+      if (requestId !== chapterListRequestId.current) return;
       setSelectedItem((current) => current?.id === item.id ? { ...current, chapters } : current);
       if (chapters.length === 0) {
         setChapterListError("Aucun chapitre lisible en français ou en anglais n'est disponible dans MangaDex pour ce titre.");
       }
     } catch (error) {
+      if (requestId !== chapterListRequestId.current) return;
       setChapterListError(error instanceof Error ? error.message : "Impossible de récupérer les chapitres MangaDex.");
     } finally {
-      setChapterListLoading(false);
+      if (requestId === chapterListRequestId.current) setChapterListLoading(false);
     }
   }
 
   async function openMangaDexChapter(chapterId: string, chapterTitle: string) {
+    const requestId = ++readerPagesRequestId.current;
     setReaderLoading(true);
     setReaderError("");
     setReaderChapterPages([]);
@@ -578,26 +585,32 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
     try {
       const pages = await fetchMangaDexChapterPages(chapterId, readerQuality);
+      if (requestId !== readerPagesRequestId.current) return;
       setReaderChapterPages(pages);
     } catch (error) {
+      if (requestId !== readerPagesRequestId.current) return;
       setReaderError(error instanceof Error ? error.message : "Impossible de charger ce chapitre.");
     } finally {
-      setReaderLoading(false);
+      if (requestId === readerPagesRequestId.current) setReaderLoading(false);
     }
   }
 
   async function switchReaderQuality(nextQuality: "data" | "data-saver") {
     setReaderQuality(nextQuality);
     if (!readerChapterId) return;
+    const chapterId = readerChapterId;
+    const requestId = ++readerPagesRequestId.current;
     setReaderLoading(true);
     setReaderError("");
     try {
-      const pages = await fetchMangaDexChapterPages(readerChapterId, nextQuality);
+      const pages = await fetchMangaDexChapterPages(chapterId, nextQuality);
+      if (requestId !== readerPagesRequestId.current) return;
       setReaderChapterPages(pages);
     } catch (error) {
+      if (requestId !== readerPagesRequestId.current) return;
       setReaderError(error instanceof Error ? error.message : "Impossible de changer la qualité des pages.");
     } finally {
-      setReaderLoading(false);
+      if (requestId === readerPagesRequestId.current) setReaderLoading(false);
     }
   }
 
