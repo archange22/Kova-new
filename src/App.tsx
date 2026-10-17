@@ -111,7 +111,7 @@ function validHttpUrl(value: string) {
 }
 
 function slugifyTitle(value: string) {
-  return value.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase()
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
     .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "manga";
 }
 function titlePath(item: CatalogItem) { return "/" + slugifyTitle(item.title); }
@@ -370,26 +370,29 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const path = routePath.replace(/\\/+$/, "") || "/";
+    const path = "/" + routePath.split("/").filter(Boolean).join("/");
     if (lastResolvedPath.current === path) return;
-    lastResolvedPath.current = path;
     if (path === "/") {
+      lastResolvedPath.current = path;
       setScreen("home"); setSelectedItem(null); setReaderOpen(false); setAuthOpen(false); return;
     }
     if (path === "/explorer") {
+      lastResolvedPath.current = path;
       setScreen("explore"); setSelectedItem(null); setReaderOpen(false); setAuthOpen(false); return;
     }
     if (path === "/bibliotheque") {
+      lastResolvedPath.current = path;
       setScreen("library"); setSelectedItem(null); setReaderOpen(false); setAuthOpen(false); return;
     }
     if (path === "/connexion") {
+      lastResolvedPath.current = path;
       setScreen("login"); setAuthOpen(false); return;
     }
     const segments = path.split("/").filter(Boolean);
     const chapterIndex = segments.indexOf("chapitre");
     const slug = segments[0];
     const chapterId = chapterIndex >= 0 ? decodeURIComponent(segments[chapterIndex + 1] || "") : "";
-    if (!slug || slug === "lecteur") { setScreen("home"); navigatePath("/", true); return; }
+    if (!slug || slug === "lecteur") { lastResolvedPath.current = path; setScreen("home"); navigatePath("/", true); return; }
     let alive = true;
     const controller = new AbortController();
     const findRouteTitle = async () => {
@@ -402,12 +405,14 @@ export default function App() {
         }
         if (!alive) return;
         if (!result) {
+          lastResolvedPath.current = path;
           setScreen("explore"); setQuery(searchText);
           setNotice("Ce manga n’a pas été trouvé. Vérifie le titre ou cherche-le dans le catalogue.");
           return;
         }
         const enriched = await enrichWithAniList([result], controller.signal);
         if (!alive) return;
+        lastResolvedPath.current = path;
         const detailed = await openTitle(enriched[0] || result, { updateRoute: false });
         if (!alive || !chapterId) return;
         let chapters = detailed.chapters ?? [];
@@ -435,6 +440,7 @@ export default function App() {
         }
       } catch (error) {
         if (!alive || (error instanceof DOMException && error.name === "AbortError")) return;
+        lastResolvedPath.current = path;
         setScreen("explore");
         setNotice(error instanceof Error ? error.message : "Impossible d’ouvrir cette adresse KOVA.");
       }
