@@ -11,6 +11,7 @@ service cloud.firestore {
 
     function supportAdmin() {
       return signedIn() && request.auth.uid in [
+        'fL5Gz1lTOUY11JRu14KHKcDD95q1',
         'TIat7e3WQyXIk9HyLdjPxsfZ6R92',
         'B23E8GVKHIUnzgdK5YScoiZzsnG3'
       ];
@@ -96,20 +97,25 @@ service cloud.firestore {
         && request.resource.data.createdAt is timestamp
         && request.resource.data.updatedAt is timestamp;
 
-      allow update: if supportAdmin()
+      allow update: if (
+        supportAdmin()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status', 'updatedAt', 'lastMessageAt', 'lastMessagePreview'
         ])
         && validSupportStatus(request.resource.data.status)
         && request.resource.data.updatedAt is timestamp
-        || (signedIn()
-          && resource.data.uid == request.auth.uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'status', 'updatedAt', 'lastMessageAt', 'lastMessagePreview'
-          ])
-          && request.resource.data.updatedAt is timestamp
-          && (request.resource.data.status == resource.data.status
-            || request.resource.data.status in ['open', 'resolved']));
+      ) || (
+        signedIn()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'updatedAt', 'lastMessageAt', 'lastMessagePreview'
+        ])
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.lastMessagePreview is string
+        && request.resource.data.lastMessagePreview.size() <= 180
+        && (request.resource.data.status == resource.data.status
+          || request.resource.data.status in ['open', 'resolved'])
+      );
 
       allow delete: if supportAdmin();
 
@@ -134,7 +140,7 @@ service cloud.firestore {
           && request.resource.data.body.size() <= 4000
           && request.resource.data.createdAt is timestamp
           && (supportAdmin()
-            || get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.uid == request.auth.uid);
+            || getAfter(/databases/$(database)/documents/supportTickets/$(ticketId)).data.uid == request.auth.uid);
 
         allow update, delete: if false;
       }
