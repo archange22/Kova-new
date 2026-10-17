@@ -49,6 +49,9 @@ import {
   ShieldCheck,
   Sparkles,
   UserRound,
+  UserPlus,
+  UserCheck,
+  Users,
   X,
 } from "lucide-react";
 import { auth, db } from "./lib/firebase";
@@ -324,6 +327,10 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [publicProfile, setPublicProfile] = useState<(Profile & { uid: string }) | null>(null);
   const [publicProfileLoading, setPublicProfileLoading] = useState(false);
+  const [publicProfileFollowing, setPublicProfileFollowing] = useState(false);
+  const [publicProfileFollowers, setPublicProfileFollowers] = useState(0);
+  const [publicProfileFollowingCount, setPublicProfileFollowingCount] = useState(0);
+  const [followBusy, setFollowBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [legalOpen, setLegalOpen] = useState(false);
   const [legalSection, setLegalSection] = useState<"terms" | "privacy" | "copyright" | "community" | "safety">("terms");
@@ -393,6 +400,20 @@ export default function App() {
         }
         if (!alive) return;
         setProfile(loadedProfile);
+        // Publish only profile-safe fields in a separate document; never expose the private users document.
+        const publicRef = doc(db, "publicProfiles", currentUser.uid);
+        const publicSnapshot = await getDoc(publicRef);
+        if (!publicSnapshot.exists()) {
+          await setDoc(publicRef, {
+            uid: currentUser.uid,
+            username: loadedProfile.username || currentUser.displayName || "Lecteur KOVA",
+            bio: loadedProfile.bio || "",
+            photoURL: loadedProfile.photoURL || currentUser.photoURL || "",
+            bannerURL: loadedProfile.bannerURL || "",
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        }
 
         const librarySnapshot = await getDocs(collection(db, "users", currentUser.uid, "library"));
         const entries = librarySnapshot.docs
@@ -705,6 +726,14 @@ export default function App() {
         ...nextProfile,
         updatedAt: serverTimestamp(),
       }, { merge: true });
+      await setDoc(doc(db, "publicProfiles", user.uid), {
+        uid: user.uid,
+        username: nextProfile.username,
+        bio: nextProfile.bio,
+        photoURL: nextProfile.photoURL,
+        bannerURL: nextProfile.bannerURL,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
       setProfile(nextProfile);
       setProfileOpen(false);
       setNotice("Profil enregistré !");
@@ -712,6 +741,39 @@ export default function App() {
       setNotice(friendlyError(error));
     } finally {
       setProfileBusy(false);
+    }
+  }
+
+  async function togglePublicProfileFollow() {
+    if (!user) {
+      setAuthMode("login");
+      setAuthOpen(true);
+      setNotice("Connecte-toi pour suivre des lecteurs KOVA.");
+      return;
+    }
+    if (!publicProfile || publicProfile.uid === user.uid || followBusy) return;
+    setFollowBusy(true);
+    const followRef = doc(db, "follows", user.uid + "_" + publicProfile.uid);
+    try {
+      if (publicProfileFollowing) {
+        await deleteDoc(followRef);
+        setPublicProfileFollowing(false);
+        setPublicProfileFollowers((count) => Math.max(0, count - 1));
+        setNotice("Tu ne suis plus ce lecteur.");
+      } else {
+        await setDoc(followRef, {
+          followerUid: user.uid,
+          followingUid: publicProfile.uid,
+          createdAt: serverTimestamp(),
+        });
+        setPublicProfileFollowing(true);
+        setPublicProfileFollowers((count) => count + 1);
+        setNotice("Lecteur ajouté à tes abonnements !");
+      }
+    } catch (error) {
+      setNotice(friendlyError(error));
+    } finally {
+      setFollowBusy(false);
     }
   }
 
@@ -1047,11 +1109,29 @@ export default function App() {
       setSupportOpen(false);
       if (profileUid) {
         setPublicProfileLoading(true);
-        void getDoc(doc(db, "users", profileUid)).then((snapshot) => {
-          if (snapshot.exists()) setPublicProfile({ uid: profileUid, ...(snapshot.data() as Profile) });
-          else setPublicProfile({ uid: profileUid, username: "Lecteur KOVA", bio: "", photoURL: "", bannerURL: "" });
-        }).catch((error) => { setNotice(friendlyError(error)); setPublicProfile(null); })
-          .finally(() => setPublicProfileLoading(false));
+        setPublicProfile(null);
+        void (async () => {
+          try {
+            const [profileSnapshot, followersSnapshot, followingSnapshot] = await Promise.all([
+              getDoc(doc(db, "publicProfiles", profileUid)),
+              getDocs(firestoreQuery(collection(db, "follows"), where("followingUid", "==", profileUid))),
+              getDocs(firestoreQuery(collection(db, "follows"), where("followerUid", "==", profileUid))),
+            ]);
+            if (profileSnapshot.exists()) setPublicProfile({ uid: profileUid, ...(profileSnapshot.data() as Profile) });
+            else setPublicProfile({ uid: profileUid, username: "Lecteur KOVA", bio: "", photoURL: "", bannerURL: "" });
+            setPublicProfileFollowers(followersSnapshot.size);
+            setPublicProfileFollowingCount(followingSnapshot.size);
+            if (user && user.uid !== profileUid) {
+              const followSnapshot = await getDoc(doc(db, "follows", user.uid + "_" + profileUid));
+              setPublicProfileFollowing(followSnapshot.exists());
+            } else setPublicProfileFollowing(false);
+          } catch (error) {
+            setNotice(friendlyError(error));
+            setPublicProfile(null);
+          } finally {
+            setPublicProfileLoading(false);
+          }
+        })();
       }
       appliedRouteRef.current = path;
       return;
@@ -1381,11 +1461,11 @@ export default function App() {
                 <div className="premium-profile-identity"><span className="premium-profile-kicker"><Sparkles size={13} /> KOVA MEMBER</span><h3>{publicProfile.username || "Lecteur KOVA"}</h3>
                   {publicProfile.uid === "fL5Gz1lTOUY11JRu14KHKcDD95q1" && <span className="premium-owner-badge"><ShieldCheck size={13} /> OWNER</span>}
                 </div>
-                {user?.uid === publicProfile.uid && <button className="secondary-button" onClick={() => { setPublicProfile(null); openProfile(); }}>Modifier le profil</button>}
+                {user?.uid === publicProfile.uid ? <button className="secondary-button" onClick={() => { setPublicProfile(null); openProfile(); }}>Modifier le profil</button> : <button className={publicProfileFollowing ? "secondary-button profile-follow-button is-following" : "primary-button profile-follow-button"} onClick={() => void togglePublicProfileFollow()} disabled={followBusy || !user}>{publicProfileFollowing ? <UserCheck size={16} /> : <UserPlus size={16} />}{followBusy ? "Patiente…" : publicProfileFollowing ? "Abonné" : user ? "Suivre" : "Connecte-toi pour suivre"}</button>}
               </div>
               <div className="premium-profile-body">
                 <div className="premium-profile-section"><span className="section-kicker">À PROPOS</span><p>{publicProfile.bio?.trim() || "Ce lecteur préfère laisser son profil mystérieux."}</p></div>
-                <div className="premium-profile-stats"><div><Sparkles size={17} /><strong>Membre KOVA</strong><span>Passion manga</span></div><div><BookOpen size={17} /><strong>Bibliothèque</strong><span>Lectures personnelles</span></div><div><ShieldCheck size={17} /><strong>Profil public</strong><span>Personnalisé</span></div></div>
+                <div className="premium-profile-stats community-profile-stats"><div><Users size={17} /><strong>{publicProfileFollowers}</strong><span>Abonnés</span></div><div><UserCheck size={17} /><strong>{publicProfileFollowingCount}</strong><span>Abonnements</span></div><div><ShieldCheck size={17} /><strong>Membre</strong><span>Communauté KOVA</span></div></div>
                 <div className="premium-profile-link"><span>URL du profil</span><code>{window.location.origin}/profil/{publicProfile.uid}</code><button className="small-outline" onClick={() => { void navigator.clipboard?.writeText(window.location.origin + "/profil/" + publicProfile.uid); setNotice("Lien du profil copié."); }}>Copier le lien</button></div>
               </div>
             </section>
