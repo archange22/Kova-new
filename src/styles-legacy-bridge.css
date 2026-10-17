@@ -552,3 +552,24 @@ main {
     transition-duration: .01ms !important;
   }
 }
+
+/* Restore compact placeholders where the previous stylesheet used tall manga posters. */
+.release-cover .cover-placeholder {
+  min-height: 0;
+  height: 100%;
+}
+.detail-cover > .cover-placeholder {
+  min-height: 0;
+  height: 100%;
+}
+.library-card-open > .cover-placeholder {
+  min-height: 0;
+  height: 87px;
+}
+.floating-cover {
+  background: linear-gradient(155deg, #3a2730, #1c1821 65%);
+}
+.floating-cover:hover {
+  border-color: rgba(255, 155, 98, .38);
+}
+.menu-backdrop { background: rgba(8, 7, 11, .72); }
