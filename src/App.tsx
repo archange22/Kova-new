@@ -4,6 +4,7 @@ import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
   signOut,
   updateProfile,
 } from "firebase/auth";
@@ -19,6 +20,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
 import {
   ArrowDownRight,
@@ -81,6 +83,7 @@ type SupportTicket = {
 };
 
 const SUPPORT_ADMIN_UIDS = new Set([
+  "fL5Gz1lTOUY11JRu14KHKcDD95q1",
   "TIat7e3WQyXIk9HyLdjPxsfZ6R92",
   "B23E8GVKHIUnzgdK5YScoiZzsnG3",
 ]);
@@ -293,6 +296,7 @@ export default function App() {
   const [profileDraft, setProfileDraft] = useState({ username: "", bio: "", photoURL: "", bannerURL: "" });
   const [profileBusy, setProfileBusy] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
@@ -449,6 +453,24 @@ export default function App() {
       setNotice(friendlyError(error));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handlePasswordReset() {
+    const targetEmail = email.trim();
+    if (!targetEmail) {
+      setNotice("Saisis d’abord ton adresse e-mail pour recevoir le lien de réinitialisation.");
+      return;
+    }
+    setResetBusy(true);
+    setNotice("");
+    try {
+      await sendPasswordResetEmail(auth, targetEmail);
+      setNotice("Si un compte correspond à cette adresse, un e-mail de réinitialisation va arriver. Vérifie aussi les courriers indésirables.");
+    } catch (error) {
+      setNotice(friendlyError(error));
+    } finally {
+      setResetBusy(false);
     }
   }
 
@@ -775,7 +797,9 @@ export default function App() {
     setSupportError("");
     try {
       const ticketRef = doc(collection(db, "supportTickets"));
-      await setDoc(ticketRef, {
+      const messageRef = doc(collection(db, "supportTickets", ticketRef.id, "messages"));
+      const batch = writeBatch(db);
+      batch.set(ticketRef, {
         uid: user.uid,
         username: displayName.slice(0, 60),
         email: (user.email || "").slice(0, 254),
@@ -785,15 +809,16 @@ export default function App() {
         lastMessagePreview: body.slice(0, 180),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
+        lastMessageAt: serverTimestamp(),
       });
-      const messageRef = doc(collection(db, "supportTickets", ticketRef.id, "messages"));
-      await setDoc(messageRef, {
+      batch.set(messageRef, {
         authorUid: user.uid,
         authorName: displayName.slice(0, 60),
         authorRole: isSupportAdmin(user.uid) ? "support" : "user",
         body: body.slice(0, 4000),
         createdAt: serverTimestamp(),
       });
+      await batch.commit();
       setSupportSubject("");
       setSupportCategory("bug");
       setSupportFirstMessage("");
@@ -1160,6 +1185,11 @@ export default function App() {
             <label>Adresse e-mail<input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="toi@exemple.com" /></label>
             <label>Mot de passe<input type="password" autoComplete={authMode === "signup" ? "new-password" : "current-password"} minLength={6} required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="6 caractères minimum" /></label>
             <button className="primary-button full-button" type="submit" disabled={busy}>{busy ? "Patiente…" : authMode === "signup" ? "Créer mon compte" : "Me connecter"} <ArrowRight size={17} /></button>
+            {authMode === "login" && (
+              <button className="auth-reset-link" type="button" onClick={() => void handlePasswordReset()} disabled={resetBusy || busy}>
+                {resetBusy ? "Envoi du lien…" : "Mot de passe oublié ?"}
+              </button>
+            )}
           </form>
           <p className="modal-footnote"><ShieldCheck size={14} /> Authentification gérée par Firebase. Ton mot de passe n’est pas stocké dans ton profil KOVA.</p>
         </Modal>
