@@ -767,7 +767,7 @@ export default function App() {
     setReaderChapterId(progress.chapterId);
     setReaderChapterTitle(progress.chapterTitle);
     setReaderPageIndex(progress.pageIndex);
-    restorePageIndexRef.current = progress.pageIndex;
+    restorePageIndexRef.current = null;
     lastPersistedPageRef.current = "";
     setReaderError("");
     setReaderChapterPages([]);
@@ -779,6 +779,9 @@ export default function App() {
     try {
       const pages = await fetchMangaDexChapterPages(progress.chapterId, readerQuality);
       if (requestId !== readerPagesRequestId.current) return;
+      const targetPageIndex = Math.max(0, Math.min(progress.pageIndex, pages.length - 1));
+      restorePageIndexRef.current = targetPageIndex;
+      setReaderPageIndex(targetPageIndex);
       setReaderChapterPages(pages);
     } catch (error) {
       if (requestId !== readerPagesRequestId.current) return;
@@ -844,6 +847,10 @@ export default function App() {
     try {
       const pages = await fetchMangaDexChapterPages(chapterId, readerQuality);
       if (requestId !== readerPagesRequestId.current) return;
+      const targetPageIndex = Math.max(0, Math.min(startPage, pages.length - 1));
+      restorePageIndexRef.current = targetPageIndex > 0 ? targetPageIndex : null;
+      setReaderPageIndex(targetPageIndex);
+      if (selectedItem) persistReadingProgress(selectedItem, chapterId, chapterTitle, targetPageIndex);
       setReaderChapterPages(pages);
     } catch (error) {
       if (requestId !== readerPagesRequestId.current) return;
@@ -865,6 +872,9 @@ export default function App() {
     try {
       const pages = await fetchMangaDexChapterPages(chapterId, nextQuality);
       if (requestId !== readerPagesRequestId.current) return;
+      const targetPageIndex = Math.max(0, Math.min(readerPageIndex, pages.length - 1));
+      restorePageIndexRef.current = targetPageIndex;
+      setReaderPageIndex(targetPageIndex);
       setReaderChapterPages(pages);
     } catch (error) {
       if (requestId !== readerPagesRequestId.current) return;
