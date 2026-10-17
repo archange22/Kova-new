@@ -40,6 +40,7 @@ import { auth, db } from "./lib/firebase";
 import { fetchCatalog, fetchMangaDexChapters, fetchMangaDexChapterPages } from "./lib/catalog";
 import { enrichWithAniList, fetchAniListUserEntries, saveAniListEntryStatus } from "./lib/anilist";
 import type { CatalogItem, CatalogKind, CatalogPage } from "./lib/catalog";
+import CatalogPulse from "./components/CatalogPulse";
 
 type Profile = {
   username?: string;
@@ -716,6 +717,12 @@ export default function App() {
               )}
               {!catalogLoading && !catalogError && items.length === 0 && <EmptyState title="Catalogue vide pour l’instant" text="Change le filtre ou lance une recherche pour trouver un titre." />}
             </section>
+
+            <CatalogPulse
+              savedIds={savedIds}
+              onOpen={(item) => void openTitle(item)}
+              onSave={(item) => void saveToLibrary(item)}
+            />
           </>
         )}
 
