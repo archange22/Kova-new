@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import { auth, db } from "./lib/firebase";
 import { fetchCatalog, fetchMangaDexChapters, fetchMangaDexChapterPages } from "./lib/catalog";
-import { enrichWithAniList } from "./lib/anilist";
+import { enrichWithAniList, fetchAniListUserEntries, saveAniListEntryStatus } from "./lib/anilist";
 import type { CatalogItem, CatalogKind, CatalogPage } from "./lib/catalog";
 
 type Profile = {
@@ -183,6 +183,39 @@ export default function App() {
   const [profileBusy, setProfileBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
+  const [anilistClientId, setAniListClientId] = useState(() => sessionStorage.getItem("kova-anilist-client-id") || "");
+  const [anilistToken, setAniListToken] = useState("");
+  const [anilistName, setAniListName] = useState("");
+  const [anilistBusy, setAniListBusy] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const token = params.get("access_token");
+    const returnedState = params.get("state");
+    const expectedState = sessionStorage.getItem("kova-anilist-oauth-state");
+    if (token && returnedState && expectedState && returnedState === expectedState) {
+      sessionStorage.setItem("kova-anilist-token", token);
+      sessionStorage.removeItem("kova-anilist-oauth-state");
+      setAniListToken(token);
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      void fetchAniListUserEntries(token).then((result) => setAniListName(result.name)).catch(() => {
+        sessionStorage.removeItem("kova-anilist-token");
+        setAniListToken("");
+        setNotice("Connexion AniList refusée. Vérifie l’application AniList et son URL de redirection.");
+      });
+    } else {
+      const savedToken = sessionStorage.getItem("kova-anilist-token");
+      if (savedToken) {
+        setAniListToken(savedToken);
+        void fetchAniListUserEntries(savedToken).then((result) => setAniListName(result.name)).catch(() => {
+          sessionStorage.removeItem("kova-anilist-token");
+          setAniListToken("");
+          setAniListName("");
+        });
+      }
+      if (params.get("error")) setNotice("La connexion AniList a été annulée ou refusée.");
+    }
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -328,6 +361,82 @@ export default function App() {
       setNotice("Vous êtes déconnecté.");
     } catch (error) {
       setNotice(friendlyError(error));
+    }
+  }
+
+  function connectAniList() {
+    const clientId = anilistClientId.trim();
+    if (!clientId) {
+      setNotice("Ajoute d’abord le Client ID de ton application AniList.");
+      return;
+    }
+    sessionStorage.setItem("kova-anilist-client-id", clientId);
+    const state = crypto.randomUUID();
+    sessionStorage.setItem("kova-anilist-oauth-state", state);
+    const redirectUri = window.location.origin + "/";
+    const url = new URL("https://anilist.co/api/v2/oauth/authorize");
+    url.searchParams.set("client_id", clientId);
+    url.searchParams.set("response_type", "token");
+    url.searchParams.set("redirect_uri", redirectUri);
+    url.searchParams.set("state", state);
+    window.location.assign(url.toString());
+  }
+
+  function disconnectAniList() {
+    sessionStorage.removeItem("kova-anilist-token");
+    sessionStorage.removeItem("kova-anilist-oauth-state");
+    setAniListToken("");
+    setAniListName("");
+    setNotice("Compte AniList déconnecté de cette session.");
+  }
+
+  async function syncAniList() {
+    if (!user || !anilistToken) return;
+    setAniListBusy(true);
+    setNotice("");
+    try {
+      const result = await fetchAniListUserEntries(anilistToken);
+      setAniListName(result.name);
+      const remoteById = new Map(result.entries.map((entry) => [entry.mediaId, entry]));
+      const statusToKova: Record<string, LibraryStatus> = {
+        CURRENT: "reading", COMPLETED: "completed", PAUSED: "paused",
+        DROPPED: "dropped", PLANNING: "to_read", REPEATING: "reading",
+      };
+      const statusToAniList: Record<LibraryStatus, "CURRENT" | "COMPLETED" | "PAUSED" | "DROPPED" | "PLANNING"> = {
+        reading: "CURRENT", completed: "COMPLETED", paused: "PAUSED",
+        dropped: "DROPPED", to_read: "PLANNING",
+      };
+      let updated = 0;
+      let uploaded = 0;
+      const nextLibrary = [...library];
+      for (let index = 0; index < nextLibrary.length; index += 1) {
+        const entry = nextLibrary[index];
+        if (!entry.anilistId) continue;
+        const remote = remoteById.get(entry.anilistId);
+        if (remote) {
+          const nextStatus = statusToKova[remote.status] || entry.libraryStatus;
+          if (nextStatus !== entry.libraryStatus) {
+            await setDoc(doc(db, "users", user.uid, "library", getLibraryDocId(entry)), {
+              libraryStatus: nextStatus,
+              anilistId: entry.anilistId,
+              anilistUrl: entry.anilistUrl || remote.media.siteUrl || "https://anilist.co/manga/" + entry.anilistId,
+              updatedAt: serverTimestamp(),
+            }, { merge: true });
+            nextLibrary[index] = { ...entry, libraryStatus: nextStatus };
+            updated += 1;
+          }
+        } else {
+          await saveAniListEntryStatus(anilistToken, entry.anilistId, statusToAniList[entry.libraryStatus]);
+          uploaded += 1;
+        }
+      }
+      setLibrary(nextLibrary);
+      setNotice("Synchronisation terminée avec AniList : " + updated + " statut(s) importé(s), " + uploaded + " titre(s) envoyé(s). Seuls les titres liés à AniList sont synchronisés.");
+    } catch (error) {
+      setNotice(error instanceof Error ? "Synchronisation AniList impossible : " + error.message : "Synchronisation AniList impossible.");
+      if (String(error).toLowerCase().includes("unauthorized") || String(error).includes("401")) disconnectAniList();
+    } finally {
+      setAniListBusy(false);
     }
   }
 
@@ -643,6 +752,27 @@ export default function App() {
               <div><span className="section-kicker">TON ESPACE PERSONNEL</span><h1>Ma bibliothèque<span className="purple-period">.</span></h1><p>Un endroit pour suivre tes lectures, sans perdre le fil.</p></div>
               {user && <span className="library-count">{library.length} {library.length > 1 ? "séries" : "série"}</span>}
             </div>
+            {user && (
+              <div className="anilist-sync-panel">
+                <div>
+                  <span className="section-kicker">SYNCHRONISATION EXTERNE</span>
+                  <h2>{anilistToken ? "AniList connecté" : "Relier ta bibliothèque AniList"}</h2>
+                  <p>{anilistToken ? "Compte : " + (anilistName || "connecté") + ". Les titres ayant un identifiant AniList peuvent synchroniser leur statut avec KOVA." : "Crée une application AniList, puis renseigne son Client ID. L’URL de redirection à enregistrer est " + window.location.origin + "/."}</p>
+                </div>
+                {!anilistToken ? (
+                  <div className="anilist-connect-controls">
+                    <label>Client ID AniList<input value={anilistClientId} onChange={(event) => setAniListClientId(event.target.value)} placeholder="Client ID de ton application" inputMode="numeric" /></label>
+                    <button className="primary-button" onClick={connectAniList}>Connecter AniList <ArrowRight size={16} /></button>
+                  </div>
+                ) : (
+                  <div className="anilist-connect-controls">
+                    <button className="primary-button" onClick={() => void syncAniList()} disabled={anilistBusy}>{anilistBusy ? "Synchronisation…" : "Synchroniser maintenant"} <ArrowRight size={16} /></button>
+                    <button className="quiet-button" onClick={disconnectAniList}>Déconnecter</button>
+                  </div>
+                )}
+                <small>Le jeton reste dans la session de ce navigateur et n’est pas enregistré dans Firebase.</small>
+              </div>
+            )}
             {!user ? (
               <div className="empty-panel"><span className="empty-icon"><LibraryBig size={26} /></span><h2>Ta bibliothèque t’attend</h2><p>Connecte-toi pour synchroniser tes favoris et suivre l’avancement de tes lectures.</p><button className="primary-button" onClick={() => setAuthOpen(true)}><LogIn size={17} /> Se connecter</button></div>
             ) : library.length === 0 ? (
