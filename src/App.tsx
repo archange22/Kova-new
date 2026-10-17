@@ -401,18 +401,23 @@ export default function App() {
         if (!alive) return;
         setProfile(loadedProfile);
         // Publish only profile-safe fields in a separate document; never expose the private users document.
-        const publicRef = doc(db, "publicProfiles", currentUser.uid);
-        const publicSnapshot = await getDoc(publicRef);
-        if (!publicSnapshot.exists()) {
-          await setDoc(publicRef, {
-            uid: currentUser.uid,
-            username: loadedProfile.username || currentUser.displayName || "Lecteur KOVA",
-            bio: loadedProfile.bio || "",
-            photoURL: loadedProfile.photoURL || currentUser.photoURL || "",
-            bannerURL: loadedProfile.bannerURL || "",
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          });
+        // Profile publication is isolated so missing/unpublished community rules never block sign-in or the library.
+        try {
+          const publicRef = doc(db, "publicProfiles", currentUser.uid);
+          const publicSnapshot = await getDoc(publicRef);
+          if (!publicSnapshot.exists()) {
+            await setDoc(publicRef, {
+              uid: currentUser.uid,
+              username: (loadedProfile.username || currentUser.displayName || "Lecteur KOVA").slice(0, 30),
+              bio: (loadedProfile.bio || "").slice(0, 180),
+              photoURL: loadedProfile.photoURL || currentUser.photoURL || "",
+              bannerURL: loadedProfile.bannerURL || "",
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            });
+          }
+        } catch {
+          // Community rules may need to be published in Firebase before public profiles are available.
         }
 
         const librarySnapshot = await getDocs(collection(db, "users", currentUser.uid, "library"));
