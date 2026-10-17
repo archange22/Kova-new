@@ -14,9 +14,11 @@ import {
   doc,
   getDoc,
   getDocs,
+  query,
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
 } from "firebase/firestore";
 import {
   ArrowDownRight,
@@ -26,10 +28,13 @@ import {
   Compass,
   Heart,
   LibraryBig,
+  LifeBuoy,
   LogIn,
   LogOut,
   Menu,
+  MessageSquareText,
   Search,
+  Send,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -53,9 +58,67 @@ type Profile = {
 type LibraryStatus = "to_read" | "reading" | "completed" | "paused" | "dropped";
 type LibraryEntry = CatalogItem & { libraryStatus: LibraryStatus };
 
+type SupportStatus = "open" | "in_progress" | "resolved" | "closed";
+type SupportCategory = "bug" | "account" | "reading" | "catalog" | "suggestion" | "other";
+type SupportMessage = {
+  id: string;
+  authorUid: string;
+  authorName: string;
+  authorRole: "user" | "support";
+  body: string;
+  createdAt?: { toMillis?: () => number };
+};
+type SupportTicket = {
+  id: string;
+  uid: string;
+  username: string;
+  email: string;
+  subject: string;
+  category: SupportCategory;
+  status: SupportStatus;
+  lastMessagePreview: string;
+  createdAt?: { toMillis?: () => number };
+  updatedAt?: { toMillis?: () => number };
+};
+
+const SUPPORT_ADMIN_UIDS = new Set([
+  "TIat7e3WQyXIk9HyLdjPxsfZ6R92",
+  "B23E8GVKHIUnzgdK5YScoiZzsnG3",
+]);
+
+function isSupportAdmin(uid?: string | null) {
+  return Boolean(uid && SUPPORT_ADMIN_UIDS.has(uid));
+}
+
+function timestampMillis(value?: { toMillis?: () => number } | null) {
+  return value && typeof value.toMillis === "function" ? value.toMillis() : 0;
+}
+
+function supportStatusLabel(status: SupportStatus) {
+  const labels: Record<SupportStatus, string> = {
+    open: "Ouvert",
+    in_progress: "En cours",
+    resolved: "Résolu",
+    closed: "Fermé",
+  };
+  return labels[status];
+}
+
+function supportCategoryLabel(category: SupportCategory) {
+  const labels: Record<SupportCategory, string> = {
+    bug: "Bug / problème technique",
+    account: "Compte et profil",
+    reading: "Lecteur / chapitres",
+    catalog: "Catalogue",
+    suggestion: "Suggestion",
+    other: "Autre demande",
+  };
+  return labels[category];
+}
+
 type Screen = "home" | "explore" | "library" | "reader";
 
-const reservedRoutes = new Set(["connexion", "bibliotheque", "explorer", "chapitre"]);
+const reservedRoutes = new Set(["connexion", "bibliotheque", "explorer", "chapitre", "support"]);
 
 function slugify(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
@@ -212,6 +275,18 @@ export default function App() {
   const [authOpen, setAuthOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [supportLoading, setSupportLoading] = useState(false);
+  const [supportBusy, setSupportBusy] = useState(false);
+  const [supportError, setSupportError] = useState("");
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
+  const [supportTicketId, setSupportTicketId] = useState("");
+  const [supportMessages, setSupportMessages] = useState<SupportMessage[]>([]);
+  const [supportSubject, setSupportSubject] = useState("");
+  const [supportCategory, setSupportCategory] = useState<SupportCategory>("bug");
+  const [supportFirstMessage, setSupportFirstMessage] = useState("");
+  const [supportReply, setSupportReply] = useState("");
+  const [supportStatusBusy, setSupportStatusBusy] = useState(false);
   const [authMode, setAuthMode] = useState<"signup" | "login">("signup");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -732,6 +807,169 @@ export default function App() {
     }
   }
 
+  async function loadSupportMessages(ticketId: string) {
+    if (!user) return;
+    try {
+      const snapshot = await getDocs(collection(db, "supportTickets", ticketId, "messages"));
+      const messages = snapshot.docs
+        .map((entry) => ({ id: entry.id, ...entry.data() }) as SupportMessage)
+        .sort((a, b) => timestampMillis(a.createdAt) - timestampMillis(b.createdAt));
+      setSupportMessages(messages);
+    } catch (error) {
+      setSupportError(friendlyError(error));
+      setSupportMessages([]);
+    }
+  }
+
+  async function loadSupportTickets(preferredTicketId?: string) {
+    if (!user) return;
+    setSupportLoading(true);
+    setSupportError("");
+    try {
+      const ticketCollection = collection(db, "supportTickets");
+      const snapshot = isSupportAdmin(user.uid)
+        ? await getDocs(ticketCollection)
+        : await getDocs(query(ticketCollection, where("uid", "==", user.uid)));
+      const tickets = snapshot.docs
+        .map((entry) => ({ id: entry.id, ...entry.data() }) as SupportTicket)
+        .sort((a, b) => timestampMillis(b.updatedAt) - timestampMillis(a.updatedAt));
+      setSupportTickets(tickets);
+      const nextTicketId = preferredTicketId || supportTicketId;
+      if (nextTicketId && tickets.some((ticket) => ticket.id === nextTicketId)) {
+        setSupportTicketId(nextTicketId);
+        await loadSupportMessages(nextTicketId);
+      } else {
+        setSupportTicketId("");
+        setSupportMessages([]);
+      }
+    } catch (error) {
+      setSupportError(friendlyError(error));
+    } finally {
+      setSupportLoading(false);
+    }
+  }
+
+  function openSupport() {
+    setMenuOpen(false);
+    navigatePath("/support");
+    setSupportOpen(Boolean(user));
+    setSupportError("");
+    if (!user) {
+      setAuthMode("login");
+      setAuthOpen(true);
+      setNotice("Connecte-toi pour créer un ticket et suivre les réponses du support.");
+      return;
+    }
+    setAuthOpen(false);
+    void loadSupportTickets();
+  }
+
+  async function createSupportTicket(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!user) {
+      setAuthOpen(true);
+      setAuthMode("login");
+      return;
+    }
+    const subject = supportSubject.trim();
+    const body = supportFirstMessage.trim();
+    if (subject.length < 5 || body.length < 10) {
+      setSupportError("Ajoute un sujet (5 caractères minimum) et décris le problème en au moins 10 caractères.");
+      return;
+    }
+    setSupportBusy(true);
+    setSupportError("");
+    try {
+      const ticketRef = doc(collection(db, "supportTickets"));
+      await setDoc(ticketRef, {
+        uid: user.uid,
+        username: displayName,
+        email: user.email || "",
+        subject: subject.slice(0, 120),
+        category: supportCategory,
+        status: "open",
+        lastMessagePreview: body.slice(0, 180),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      const messageRef = doc(collection(db, "supportTickets", ticketRef.id, "messages"));
+      await setDoc(messageRef, {
+        authorUid: user.uid,
+        authorName: displayName,
+        authorRole: isSupportAdmin(user.uid) ? "support" : "user",
+        body: body.slice(0, 4000),
+        createdAt: serverTimestamp(),
+      });
+      setSupportSubject("");
+      setSupportCategory("bug");
+      setSupportFirstMessage("");
+      setSupportTicketId(ticketRef.id);
+      setNotice("Ticket créé. Tu peux suivre ici les prochaines réponses.");
+      await loadSupportTickets(ticketRef.id);
+    } catch (error) {
+      setSupportError(friendlyError(error));
+    } finally {
+      setSupportBusy(false);
+    }
+  }
+
+  async function sendSupportReply(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!user || !supportTicketId) return;
+    const body = supportReply.trim();
+    if (body.length < 2) {
+      setSupportError("Écris un message avant de l’envoyer.");
+      return;
+    }
+    const ticket = supportTickets.find((entry) => entry.id === supportTicketId);
+    if (!ticket) return;
+    setSupportBusy(true);
+    setSupportError("");
+    try {
+      const messageRef = doc(collection(db, "supportTickets", supportTicketId, "messages"));
+      await setDoc(messageRef, {
+        authorUid: user.uid,
+        authorName: isSupportAdmin(user.uid) ? "Support KOVA" : displayName,
+        authorRole: isSupportAdmin(user.uid) ? "support" : "user",
+        body: body.slice(0, 4000),
+        createdAt: serverTimestamp(),
+      });
+      const nextStatus: SupportStatus = isSupportAdmin(user.uid)
+        ? ticket.status === "open" ? "in_progress" : ticket.status
+        : ticket.status === "resolved" || ticket.status === "closed" ? "open" : ticket.status;
+      await updateDoc(doc(db, "supportTickets", supportTicketId), {
+        lastMessagePreview: body.slice(0, 180),
+        lastMessageAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        status: nextStatus,
+      });
+      setSupportReply("");
+      await loadSupportTickets(supportTicketId);
+    } catch (error) {
+      setSupportError(friendlyError(error));
+      await loadSupportMessages(supportTicketId);
+    } finally {
+      setSupportBusy(false);
+    }
+  }
+
+  async function changeSupportStatus(status: SupportStatus) {
+    if (!user || !supportTicketId) return;
+    setSupportStatusBusy(true);
+    setSupportError("");
+    try {
+      await updateDoc(doc(db, "supportTickets", supportTicketId), {
+        status,
+        updatedAt: serverTimestamp(),
+      });
+      await loadSupportTickets(supportTicketId);
+    } catch (error) {
+      setSupportError(friendlyError(error));
+    } finally {
+      setSupportStatusBusy(false);
+    }
+  }
+
   useEffect(() => {
     const onPopState = () => setRoutePath(window.location.pathname);
     window.addEventListener("popstate", onPopState);
@@ -747,6 +985,20 @@ export default function App() {
         setScreen("home");
         appliedRouteRef.current = path;
       }
+      return;
+    }
+    if (path === "/support") {
+      setScreen("home");
+      if (!user) {
+        setSupportOpen(false);
+        setAuthMode("login");
+        setAuthOpen(true);
+      } else if (appliedRouteRef.current !== path || !supportOpen) {
+        setAuthOpen(false);
+        setSupportOpen(true);
+        void loadSupportTickets();
+      }
+      appliedRouteRef.current = path;
       return;
     }
     if (path === "/") {
@@ -779,7 +1031,7 @@ export default function App() {
       void openTitle(item);
       setScreen("explore");
     }
-  }, [routePath, items]);
+  }, [routePath, items, user, supportOpen]);
 
   const displayName = profile.username || user?.displayName || user?.email?.split("@")[0] || "Lecteur";
   const savedIds = new Set(library.map((entry) => entry.id));
@@ -802,6 +1054,7 @@ export default function App() {
           <button className={screen === "home" ? "nav-link active" : "nav-link"} onClick={() => goTo("home")}><Compass size={16} /> Accueil</button>
           <button className={screen === "explore" ? "nav-link active" : "nav-link"} onClick={() => goTo("explore")}><Search size={16} /> Explorer</button>
           <button className={screen === "library" ? "nav-link active" : "nav-link"} onClick={() => goTo("library")}><LibraryBig size={16} /> Bibliothèque</button>
+          <button className={supportOpen ? "nav-link active" : "nav-link"} onClick={openSupport}><LifeBuoy size={16} /> Support / tickets</button>
         </nav>
         <div className="top-actions">
           <button className="icon-button search-button" aria-label="Lancer une recherche" onClick={() => { goTo("explore"); document.getElementById("catalog-search")?.focus(); }}><Search size={19} /></button>
@@ -1016,7 +1269,7 @@ export default function App() {
       {notice && <div className="notice-toast" role="status"><span>{notice}</span><button onClick={() => setNotice("")} aria-label="Fermer le message"><X size={16} /></button></div>}
 
       {authOpen && (
-        <Modal title={authMode === "signup" ? "Rejoins KOVA" : "Content de te revoir"} subtitle="Ton espace de lecture, sauvegardé entre tes sessions." onClose={() => { setAuthOpen(false); navigatePath(routePath === "/connexion" ? "/" : routePath, true); }}>
+        <Modal title={authMode === "signup" ? "Rejoins KOVA" : "Content de te revoir"} subtitle="Ton espace de lecture, sauvegardé entre tes sessions." onClose={() => { setAuthOpen(false); navigatePath(routePath === "/connexion" || routePath === "/support" ? "/" : routePath, true); }}>
           <div className="auth-tabs"><button className={authMode === "signup" ? "selected" : ""} onClick={() => { setAuthMode("signup"); setNotice(""); }}>Créer un compte</button><button className={authMode === "login" ? "selected" : ""} onClick={() => { setAuthMode("login"); setNotice(""); }}>Connexion</button></div>
           <form className="form-stack" onSubmit={handleAuth}>
             {authMode === "signup" && <label>Pseudonyme<input autoComplete="nickname" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Ton pseudo KOVA" maxLength={30} /></label>}
@@ -1045,6 +1298,90 @@ export default function App() {
         </Modal>
       )}
 
+      {supportOpen && user && (
+        <Modal title={isSupportAdmin(user.uid) ? "Centre de support KOVA" : "Support & tickets"} subtitle={isSupportAdmin(user.uid) ? "Lis les demandes, réponds aux lecteurs et mets à jour leur statut." : "Une question ou un problème ? Crée un ticket et garde toutes les réponses au même endroit."} onClose={() => { setSupportOpen(false); setSupportTicketId(""); setSupportMessages([]); navigatePath("/", true); }} wide>
+          <div className="support-intro">
+            <span className="support-intro-icon"><LifeBuoy size={23} /></span>
+            <div><strong>{isSupportAdmin(user.uid) ? "Boîte de réception du support" : "On est là pour t’aider"}</strong><p>{isSupportAdmin(user.uid) ? "Les tickets sont triés du plus récemment mis à jour au plus ancien." : "Décris le souci avec assez de détails. Ne partage jamais ton mot de passe."}</p></div>
+            <span className="support-security"><ShieldCheck size={15} /> Privé</span>
+          </div>
+          {supportError && <div className="support-error" role="alert">{supportError}<button onClick={() => setSupportError("")} aria-label="Fermer l’erreur"><X size={14} /></button></div>}
+          <div className="support-layout">
+            <aside className="support-ticket-sidebar">
+              <button className="primary-button support-new-ticket" onClick={() => { setSupportTicketId(""); setSupportMessages([]); setSupportError(""); }}><MessageSquareText size={17} /> Nouveau ticket</button>
+              <div className="support-list-heading"><span>{isSupportAdmin(user.uid) ? "Demandes reçues" : "Mes demandes"}</span><small>{supportTickets.length}</small></div>
+              {supportLoading ? <div className="support-list-empty">Chargement des tickets…</div> : supportTickets.length === 0 ? <div className="support-list-empty">Aucun ticket pour l’instant.<br />Besoin d’aide ? Crée la première demande.</div> : (
+                <div className="support-ticket-list">
+                  {supportTickets.map((ticket) => (
+                    <button key={ticket.id} className={supportTicketId === ticket.id ? "support-ticket-item selected" : "support-ticket-item"} onClick={() => { setSupportTicketId(ticket.id); setSupportError(""); void loadSupportMessages(ticket.id); }}>
+                      <span className="support-ticket-topline"><strong>{ticket.subject}</strong><span className={"support-status status-" + ticket.status}>{supportStatusLabel(ticket.status)}</span></span>
+                      <span className="support-ticket-preview">{ticket.lastMessagePreview || "Pas encore de message"}</span>
+                      <span className="support-ticket-meta">{isSupportAdmin(user.uid) ? ticket.username || ticket.email : supportCategoryLabel(ticket.category)} · {new Date(timestampMillis(ticket.updatedAt) || timestampMillis(ticket.createdAt) || Date.now()).toLocaleDateString("fr-FR")}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </aside>
+            <section className="support-conversation">
+              {!supportTicketId ? (
+                <form className="form-stack support-compose" onSubmit={createSupportTicket}>
+                  <span className="section-kicker">NOUVELLE DEMANDE</span>
+                  <h3>Comment peut-on t’aider ?</h3>
+                  <p>Choisis le sujet, explique ce qui se passe et l’équipe pourra te répondre ici.</p>
+                  <label>Catégorie
+                    <select value={supportCategory} onChange={(event) => setSupportCategory(event.target.value as SupportCategory)}>
+                      <option value="bug">Bug / problème technique</option><option value="account">Compte et profil</option><option value="reading">Lecteur / chapitres</option><option value="catalog">Catalogue</option><option value="suggestion">Suggestion</option><option value="other">Autre demande</option>
+                    </select>
+                  </label>
+                  <label>Sujet<input required minLength={5} maxLength={120} value={supportSubject} onChange={(event) => setSupportSubject(event.target.value)} placeholder="Ex. : les pages du chapitre ne chargent pas" /></label>
+                  <label>Explique le problème<textarea required minLength={10} maxLength={4000} rows={5} value={supportFirstMessage} onChange={(event) => setSupportFirstMessage(event.target.value)} placeholder="Ce que tu essayais de faire, ce qui s’est passé et le navigateur utilisé…" /></label>
+                  <div className="support-compose-foot"><span>{supportFirstMessage.length}/4000 caractères</span><button className="primary-button" type="submit" disabled={supportBusy}>{supportBusy ? "Création…" : "Créer le ticket"} <Send size={16} /></button></div>
+                  <small className="modal-footnote">N’inclus aucun mot de passe, code de connexion ou donnée privée inutile.</small>
+                </form>
+              ) : (
+                (() => {
+                  const ticket = supportTickets.find((entry) => entry.id === supportTicketId);
+                  if (!ticket) return <div className="support-list-empty">Cette demande n’est plus disponible. Actualise la liste ou crée un nouveau ticket.</div>;
+                  return (
+                    <div className="support-thread">
+                      <div className="support-thread-heading">
+                        <div><span className="section-kicker">{supportCategoryLabel(ticket.category)}</span><h3>{ticket.subject}</h3><p>{isSupportAdmin(user.uid) ? "Créé par " + (ticket.username || ticket.email) : "Demande envoyée à l’équipe KOVA"}</p></div>
+                        <span className={"support-status status-" + ticket.status}>{supportStatusLabel(ticket.status)}</span>
+                      </div>
+                      {isSupportAdmin(user.uid) ? (
+                        <div className="support-status-controls">
+                          <label>Statut
+                            <select value={ticket.status} disabled={supportStatusBusy} onChange={(event) => void changeSupportStatus(event.target.value as SupportStatus)}>
+                              <option value="open">Ouvert</option><option value="in_progress">En cours</option><option value="resolved">Résolu</option><option value="closed">Fermé</option>
+                            </select>
+                          </label>
+                        </div>
+                      ) : ticket.status !== "resolved" && ticket.status !== "closed" ? (
+                        <div className="support-status-controls"><button className="small-outline" onClick={() => void changeSupportStatus("resolved")} disabled={supportStatusBusy}>Marquer comme résolu</button></div>
+                      ) : (
+                        <div className="support-resolved-note"><ShieldCheck size={15} /> {ticket.status === "resolved" ? "Cette demande est marquée comme résolue. Réponds pour la rouvrir." : "Cette demande est fermée. Un nouveau message la rouvrira."}</div>
+                      )}
+                      <div className="support-messages" aria-live="polite">
+                        {supportMessages.length === 0 ? <div className="support-list-empty">Chargement ou aucun message disponible…</div> : supportMessages.map((message) => (
+                          <article key={message.id} className={"support-message " + (message.authorRole === "support" ? "from-support" : "from-user")}>
+                            <div className="support-message-head"><strong>{message.authorRole === "support" ? "Support KOVA" : message.authorName || "Lecteur"}</strong><time>{new Date(timestampMillis(message.createdAt) || Date.now()).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}</time></div>
+                            <p>{message.body}</p>
+                          </article>
+                        ))}
+                      </div>
+                      <form className="support-reply-form" onSubmit={sendSupportReply}>
+                        <label htmlFor="support-reply">Ta réponse</label>
+                        <textarea id="support-reply" value={supportReply} onChange={(event) => setSupportReply(event.target.value)} maxLength={4000} rows={3} placeholder="Écris une réponse claire et respectueuse…" required />
+                        <div className="support-compose-foot"><span>{supportReply.length}/4000 caractères</span><button className="primary-button" type="submit" disabled={supportBusy}>{supportBusy ? "Envoi…" : isSupportAdmin(user.uid) ? "Répondre au lecteur" : "Envoyer la réponse"} <Send size={16} /></button></div>
+                      </form>
+                    </div>
+                  );
+                })()
+              )}
+            </section>
+          </div>
+        </Modal>
+      )}
       {settingsOpen && (
         <Modal title="Réglages KOVA" subtitle="Les réglages utiles pour garder une expérience simple et sûre." onClose={() => setSettingsOpen(false)}>
           <div className="settings-list">
