@@ -55,6 +55,21 @@ type LibraryEntry = CatalogItem & { libraryStatus: LibraryStatus };
 
 type Screen = "home" | "explore" | "library" | "reader";
 
+const reservedRoutes = new Set(["connexion", "bibliotheque", "explorer", "chapitre"]);
+
+function slugify(value: string) {
+  return value.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function getInitialSearch() {
+  const parts = window.location.pathname.split("/").filter(Boolean);
+  const candidate = parts[0] === "manga" ? parts[1] : parts[0];
+  return candidate && !reservedRoutes.has(candidate) && parts[0] !== "connexion"
+    ? decodeURIComponent(candidate).replace(/-/g, " ")
+    : "";
+}
+
 const kindOptions: Array<{ value: CatalogKind; label: string }> = [
   { value: "all", label: "Tout" },
   { value: "manga", label: "Manga" },
@@ -165,10 +180,12 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile>({});
   const [loadingAuth, setLoadingAuth] = useState(true);
-  const [screen, setScreen] = useState<Screen>("home");
+  const [screen, setScreen] = useState<Screen>(() => window.location.pathname === "/bibliotheque" ? "library" : window.location.pathname === "/explorer" ? "explore" : "home");
+  const [routePath, setRoutePath] = useState(() => window.location.pathname);
+  const appliedRouteRef = useRef("");
   const [readerReturnScreen, setReaderReturnScreen] = useState<Exclude<Screen, "reader">>("explore");
   const [selectedKind, setSelectedKind] = useState<CatalogKind>("all");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(getInitialSearch);
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -328,12 +345,25 @@ export default function App() {
     };
   }, [selectedKind, query, refreshIndex]);
 
+  function navigatePath(path: string, replace = false) {
+    if (window.location.pathname !== path) {
+      if (replace) window.history.replaceState(null, "", path);
+      else window.history.pushState(null, "", path);
+    }
+    setRoutePath(path);
+  }
+
   function goTo(nextScreen: Screen) {
     setScreen(nextScreen);
     if (nextScreen !== "reader") {
       setSelectedItem(null);
       setReaderOpen(false);
     }
+    const paths: Record<Screen, string> = {
+      home: "/", explore: "/explorer", library: "/bibliotheque",
+      reader: selectedItem ? "/" + slugify(selectedItem.title) + "/chapitre/" + encodeURIComponent(readerChapterId) : "/",
+    };
+    navigatePath(paths[nextScreen]);
     setMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -560,6 +590,7 @@ export default function App() {
   }
 
   async function openTitle(item: CatalogItem) {
+    navigatePath("/" + slugify(item.title));
     const requestId = ++chapterListRequestId.current;
     readerPagesRequestId.current += 1;
     setSelectedItem(item);
@@ -643,6 +674,8 @@ export default function App() {
     setReaderChapterTitle(chapterTitle);
     if (screen !== "reader") setReaderReturnScreen(screen);
     setScreen("reader");
+    if (selectedItem) navigatePath("/" + slugify(selectedItem.title) + "/chapitre/" + encodeURIComponent(chapterId));
+    else navigatePath("/chapitre/" + encodeURIComponent(chapterId));
     setMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
     try {
@@ -698,6 +731,54 @@ export default function App() {
     }
   }
 
+  useEffect(() => {
+    const onPopState = () => setRoutePath(window.location.pathname);
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  useEffect(() => {
+    const path = routePath.replace(/\\/+$/, "") || "/";
+    if (path === "/connexion") {
+      if (appliedRouteRef.current !== path) {
+        setAuthMode("login");
+        setAuthOpen(true);
+        setScreen("home");
+        appliedRouteRef.current = path;
+      }
+      return;
+    }
+    if (path === "/") {
+      appliedRouteRef.current = path;
+      setAuthOpen(false);
+      return;
+    }
+    if (path === "/bibliotheque" || path === "/explorer") {
+      setScreen(path === "/bibliotheque" ? "library" : "explore");
+      setAuthOpen(false);
+      appliedRouteRef.current = path;
+      return;
+    }
+    const parts = path.split("/").filter(Boolean);
+    const chapterRoute = parts.length >= 3 && parts[1] === "chapitre";
+    const titleSlug = parts[0] === "manga" ? parts[1] : parts[0];
+    if (!titleSlug || reservedRoutes.has(titleSlug)) return;
+    const item = items.find((entry) => slugify(entry.title) === decodeURIComponent(titleSlug));
+    if (!item) return;
+    const routeKey = path;
+    if (appliedRouteRef.current === routeKey) return;
+    appliedRouteRef.current = routeKey;
+    setAuthOpen(false);
+    if (chapterRoute) {
+      void openTitle(item);
+      const chapterId = decodeURIComponent(parts[2]);
+      void openMangaDexChapter(chapterId, "Chapitre");
+    } else {
+      void openTitle(item);
+      setScreen("explore");
+    }
+  }, [routePath, items]);
+
   const displayName = profile.username || user?.displayName || user?.email?.split("@")[0] || "Lecteur";
   const savedIds = new Set(library.map((entry) => entry.id));
   const recentItems = items.slice(0, 8);
@@ -727,7 +808,7 @@ export default function App() {
               {profile.photoURL ? <img className="avatar" src={profile.photoURL} alt="" /> : <span className="avatar">{displayName.slice(0, 1).toUpperCase()}</span>}
               <span className="profile-name">{displayName}</span>
             </button>
-          ) : <button className="login-link" onClick={() => { setAuthMode("signup"); setAuthOpen(true); }}><LogIn size={16} /> Connexion</button>}
+          ) : <button className="login-link" onClick={() => { setAuthMode("login"); setAuthOpen(true); navigatePath("/connexion"); }}><LogIn size={16} /> Connexion</button>}
           <button className="icon-button settings-button" aria-label="Ouvrir les réglages" onClick={() => setSettingsOpen(true)}><Settings size={18} /></button>
         </div>
       </header>
@@ -933,7 +1014,7 @@ export default function App() {
       {notice && <div className="notice-toast" role="status"><span>{notice}</span><button onClick={() => setNotice("")} aria-label="Fermer le message"><X size={16} /></button></div>}
 
       {authOpen && (
-        <Modal title={authMode === "signup" ? "Rejoins KOVA" : "Content de te revoir"} subtitle="Ton espace de lecture, sauvegardé entre tes sessions." onClose={() => setAuthOpen(false)}>
+        <Modal title={authMode === "signup" ? "Rejoins KOVA" : "Content de te revoir"} subtitle="Ton espace de lecture, sauvegardé entre tes sessions." onClose={() => { setAuthOpen(false); navigatePath(routePath === "/connexion" ? "/" : routePath, true); }}>
           <div className="auth-tabs"><button className={authMode === "signup" ? "selected" : ""} onClick={() => { setAuthMode("signup"); setNotice(""); }}>Créer un compte</button><button className={authMode === "login" ? "selected" : ""} onClick={() => { setAuthMode("login"); setNotice(""); }}>Connexion</button></div>
           <form className="form-stack" onSubmit={handleAuth}>
             {authMode === "signup" && <label>Pseudonyme<input autoComplete="nickname" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Ton pseudo KOVA" maxLength={30} /></label>}
