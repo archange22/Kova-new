@@ -1,5 +1,5 @@
 export type CatalogKind = "all" | "manga" | "manhwa";
-export type MediaProvider = "mangadex";
+export type MediaProvider = "local";
 
 export type ReadableChapter = {
   mangaDexChapterId: string;
@@ -46,100 +46,28 @@ export type CatalogPage = {
   hasMore: boolean;
 };
 
-const MANGADEX_API = "/api/mangadex";
+/**
+ * Local UI fixtures. External manga/catalog APIs are intentionally disabled
+ * while KOVA's layout, navigation and account/support systems are developed.
+ * These are fictional sample entries, not real publication metadata.
+ */
+const DEMO_CATALOG: CatalogItem[] = [
+  { id: "demo-001", provider: "local", kind: "manga", title: "Éclipse des Lames", description: "Un apprenti cartographe découvre une cité qui n'apparaît que sous la lumière des lunes. Exemple fictif pour tester les fiches et la navigation.", year: 2026, status: "En cours", ageRating: "safe", originalLanguage: "ja", sourceUrl: "", chapters: [] },
+  { id: "demo-002", provider: "local", kind: "manhwa", title: "Le Royaume de Verre", description: "Dans un royaume suspendu, une jeune mécanicienne cherche l'origine d'un ancien signal. Exemple fictif pour la maquette KOVA.", year: 2026, status: "En cours", ageRating: "safe", originalLanguage: "ko", sourceUrl: "", chapters: [] },
+  { id: "demo-003", provider: "local", kind: "manga", title: "Les Chroniques du Renard Bleu", description: "Une équipe d'explorateurs suit les traces d'un esprit gardien. Contenu de démonstration.", year: 2025, status: "Terminé", ageRating: "safe", originalLanguage: "ja", sourceUrl: "", chapters: [] },
+  { id: "demo-004", provider: "local", kind: "manhwa", title: "Niveau Zéro", description: "Une apprentie stratège doit reconstruire sa guilde dans une ville-labyrinthe. Contenu de démonstration.", year: 2026, status: "En cours", ageRating: "safe", originalLanguage: "ko", sourceUrl: "", chapters: [] },
+  { id: "demo-005", provider: "local", kind: "manga", title: "L'Atelier des Étoiles", description: "Deux amis réparent des machines célestes dans un atelier au bord du monde. Contenu de démonstration.", year: 2025, status: "En pause", ageRating: "safe", originalLanguage: "ja", sourceUrl: "", chapters: [] },
+  { id: "demo-006", provider: "local", kind: "manhwa", title: "La Dernière Porte", description: "Une porte oubliée relie les quartiers d'une mégapole à des dimensions inconnues. Contenu de démonstration.", year: 2026, status: "En cours", ageRating: "safe", originalLanguage: "ko", sourceUrl: "", chapters: [] },
+  { id: "demo-007", provider: "local", kind: "manga", title: "Club des Mondes Perdus", description: "Un club scolaire collectionne des cartes menant à des lieux impossibles. Contenu de démonstration.", year: 2024, status: "Terminé", ageRating: "safe", originalLanguage: "ja", sourceUrl: "", chapters: [] },
+  { id: "demo-008", provider: "local", kind: "manhwa", title: "Cœur de Néon", description: "Une coursière traverse une cité lumineuse pour retrouver un message disparu. Contenu de démonstration.", year: 2025, status: "En cours", ageRating: "safe", originalLanguage: "ko", sourceUrl: "", chapters: [] },
+  { id: "demo-009", provider: "local", kind: "manga", title: "Le Jardin des Gardiens", description: "Des apprentis protègent un jardin où poussent des souvenirs. Contenu de démonstration.", year: 2025, status: "En cours", ageRating: "safe", originalLanguage: "ja", sourceUrl: "", chapters: [] },
+  { id: "demo-010", provider: "local", kind: "manhwa", title: "Aube Synthétique", description: "Une pilote et un robot archiviste cherchent une nouvelle source d'énergie. Contenu de démonstration.", year: 2026, status: "En cours", ageRating: "safe", originalLanguage: "ko", sourceUrl: "", chapters: [] },
+  { id: "demo-011", provider: "local", kind: "manga", title: "Le Train des Brumes", description: "Chaque arrêt d'un train nocturne ouvre sur un fragment de mémoire. Contenu de démonstration.", year: 2024, status: "Terminé", ageRating: "safe", originalLanguage: "ja", sourceUrl: "", chapters: [] },
+  { id: "demo-012", provider: "local", kind: "manhwa", title: "La Guilde des Inventeurs", description: "De jeunes inventeurs participent à un concours qui pourrait changer leur ville. Contenu de démonstration.", year: 2025, status: "En cours", ageRating: "safe", originalLanguage: "ko", sourceUrl: "", chapters: [] },
+];
+
 const PAGE_SIZE = 18;
-const SUPPORTED_LANGUAGES = ["fr", "en"] as const;
 
-type MangaDexRelationship = {
-  id: string;
-  type: string;
-  attributes?: { fileName?: string; name?: string };
-};
-
-type MangaDexManga = {
-  id: string;
-  attributes?: {
-    title?: Record<string, string>;
-    altTitles?: Array<Record<string, string>>;
-    description?: Record<string, string>;
-    originalLanguage?: string;
-    year?: number | null;
-    status?: string;
-    contentRating?: string;
-  };
-  relationships?: MangaDexRelationship[];
-};
-
-async function apiJson<T>(path: string, signal?: AbortSignal): Promise<T> {
-  let response: Response;
-  try {
-    response = await fetch(`${MANGADEX_API}${path}`, {
-      signal,
-      headers: { Accept: "application/json" },
-    });
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") throw error;
-    throw new Error("Connexion à MangaDex impossible. Vérifie Internet puis réessaie.");
-  }
-  if (response.status === 429) {
-    throw new Error("MangaDex reçoit trop de requêtes pour le moment. Réessaie dans un instant.");
-  }
-  if (!response.ok) {
-    throw new Error(response.status === 404
-      ? "Cette page ou ce chapitre n'existe plus sur MangaDex."
-      : `MangaDex a répondu avec le code ${response.status}. Réessaie plus tard.`);
-  }
-  return response.json() as Promise<T>;
-}
-
-function localizedValue(values?: Record<string, string>): string {
-  if (!values) return "";
-  return values.fr || values.en || values["ja-ro"] || values["ko-ro"] || Object.values(values)[0] || "";
-}
-
-function mangaTitle(manga: MangaDexManga): string {
-  return localizedValue(manga.attributes?.title) || "Manga sans titre";
-}
-
-function coverUrl(manga: MangaDexManga): string | undefined {
-  const cover = manga.relationships?.find((relationship) => relationship.type === "cover_art")?.attributes?.fileName;
-  return cover ? `/api/mangadex-cover/${manga.id}/${cover}.256.jpg` : undefined;
-}
-
-function cleanDescription(manga: MangaDexManga): string {
-  const description = localizedValue(manga.attributes?.description);
-  return description || "Aucun résumé n'est disponible pour le moment.";
-}
-
-function toCatalogItem(manga: MangaDexManga): CatalogItem | null {
-  const attributes = manga.attributes;
-  if (!attributes || !manga.id || attributes.contentRating !== "safe") return null;
-  const language = attributes.originalLanguage;
-  if (language !== "ja" && language !== "ko") return null;
-  const statusMap: Record<string, string> = {
-    ongoing: "En cours",
-    completed: "Terminé",
-    hiatus: "En pause",
-    cancelled: "Annulé",
-  };
-  const alternate = (attributes.altTitles ?? []).map(localizedValue).find(Boolean);
-  return {
-    id: "mangadex-" + manga.id,
-    provider: "mangadex",
-    kind: language === "ko" ? "manhwa" : "manga",
-    title: mangaTitle(manga),
-    alternateTitle: alternate,
-    description: cleanDescription(manga),
-    cover: coverUrl(manga),
-    year: attributes.year ?? undefined,
-    status: statusMap[attributes.status ?? ""] ?? attributes.status ?? "Non renseigné",
-    ageRating: attributes.contentRating,
-    originalLanguage: language,
-    sourceUrl: `https://mangadex.org/title/${manga.id}`,
-  };
-}
-
-/** Search MangaDex directly. Only safe-rated Japanese manga and Korean manhwa are shown. */
 export async function fetchCatalog(
   kind: CatalogKind,
   query: string,
@@ -147,142 +75,34 @@ export async function fetchCatalog(
   signal?: AbortSignal,
 ): Promise<CatalogPage> {
   if (signal?.aborted) throw new DOMException("Request aborted", "AbortError");
-  const params = new URLSearchParams();
-  params.set("limit", String(PAGE_SIZE));
-  params.set("offset", String(Math.max(0, offset)));
-  params.set("includes[]", "cover_art");
-  params.set("contentRating[]", "safe");
-  for (const language of SUPPORTED_LANGUAGES) params.append("availableTranslatedLanguage[]", language);
-
-  if (kind === "manga") {
-    params.append("originalLanguage[]", "ja");
-  } else if (kind === "manhwa") {
-    params.append("originalLanguage[]", "ko");
-  } else {
-    params.append("originalLanguage[]", "ja");
-    params.append("originalLanguage[]", "ko");
-  }
-
-  const searchTerm = query.trim();
-  if (searchTerm) {
-    params.set("title", searchTerm);
-    params.set("order[relevance]", "desc");
-  } else {
-    params.set("order[followedCount]", "desc");
-  }
-
-  const response = await apiJson<{ data?: MangaDexManga[]; total?: number }>(
-    `/manga?${params.toString()}`,
-    signal,
-  );
-  const items = (response.data ?? []).map(toCatalogItem).filter((item): item is CatalogItem => item !== null);
-  const nextOffset = offset + (response.data?.length ?? 0);
-  return {
-    items,
-    nextOffset,
-    hasMore: nextOffset < (response.total ?? nextOffset),
-  };
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const filtered = DEMO_CATALOG.filter((item) => {
+    const matchesKind = kind === "all" || item.kind === kind;
+    const matchesQuery = !normalizedQuery || item.title.toLocaleLowerCase().includes(normalizedQuery)
+      || item.description.toLocaleLowerCase().includes(normalizedQuery);
+    return matchesKind && matchesQuery;
+  });
+  const items = filtered.slice(Math.max(0, offset), Math.max(0, offset) + PAGE_SIZE);
+  const nextOffset = Math.max(0, offset) + items.length;
+  return { items, nextOffset, hasMore: nextOffset < filtered.length };
 }
 
-/** Retrieve readable French/English chapters for the selected series. */
-export async function fetchMangaDexChapters(
-  mangaId: string,
+/** Chapter network access is disabled in UI-development mode. */
+export async function fetchDemoChapters(
+  _mangaId: string,
   offset = 0,
   signal?: AbortSignal,
 ): Promise<ReadableChapterPage> {
-  const rawMangaId = mangaId.startsWith("mangadex-") ? mangaId.slice(9) : mangaId;
-  if (!/^[0-9a-f-]{36}$/i.test(rawMangaId)) {
-    throw new Error("Identifiant MangaDex invalide.");
-  }
-  const pageOffset = Math.max(0, Math.floor(offset));
-  const params = new URLSearchParams();
-  params.set("limit", "100");
-  params.set("offset", String(pageOffset));
-  params.set("order[chapter]", "asc");
-  params.set("includeExternalUrl", "0");
-  params.set("includes[]", "scanlation_group");
-  for (const language of SUPPORTED_LANGUAGES) params.append("translatedLanguage[]", language);
-
-  const response = await apiJson<{
-    total?: number;
-    data?: Array<{
-      id: string;
-      attributes?: {
-        chapter?: string | null;
-        volume?: string | null;
-        title?: string | null;
-        pages?: number;
-        externalUrl?: string | null;
-        publishAt?: string;
-        translatedLanguage?: string;
-        isUnavailable?: boolean;
-      };
-      relationships?: MangaDexRelationship[];
-    }>;
-  }>(`/manga/${rawMangaId}/feed?${params.toString()}`, signal);
-
-  const seen = new Set<string>();
-  const chapters = (response.data ?? [])
-    .filter((chapter) => {
-      const attributes = chapter.attributes;
-      return Boolean(
-        attributes &&
-        attributes.externalUrl == null &&
-        (attributes.pages ?? 0) > 0 &&
-        !attributes.isUnavailable &&
-        SUPPORTED_LANGUAGES.includes(attributes.translatedLanguage as typeof SUPPORTED_LANGUAGES[number]),
-      );
-    })
-    .filter((chapter) => {
-      const attributes = chapter.attributes!;
-      const key = `${attributes.volume ?? ""}:${attributes.chapter ?? chapter.id}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .map((chapter) => {
-      const attributes = chapter.attributes!;
-      const group = chapter.relationships?.find((relationship) => relationship.type === "scanlation_group");
-      const label = attributes.chapter ? `Chapitre ${attributes.chapter}` : "Chapitre spécial";
-      return {
-        mangaDexChapterId: chapter.id,
-        title: [label, attributes.title].filter(Boolean).join(" · "),
-        pages: attributes.pages ?? 0,
-        volume: attributes.volume ?? undefined,
-        publishedAt: attributes.publishAt,
-        language: attributes.translatedLanguage ?? "en",
-        scanlationGroup: group?.attributes?.name,
-        scanlationGroupId: group?.id,
-      };
-    });
-  const nextOffset = pageOffset + (response.data?.length ?? 0);
-  const total = response.total ?? nextOffset;
-  return {
-    chapters,
-    nextOffset,
-    total,
-    hasMore: nextOffset < total,
-  };
+  if (signal?.aborted) throw new DOMException("Request aborted", "AbortError");
+  return { chapters: [], nextOffset: offset, total: 0, hasMore: false };
 }
 
-/** Load chapter images from MangaDex@Home, using compressed images by default for mobile data savings. */
-export async function fetchMangaDexChapterPages(
-  chapterId: string,
-  quality: "data" | "data-saver" = "data-saver",
+/** No remote image host is called while external content APIs are disabled. */
+export async function fetchDemoChapterPages(
+  _chapterId: string,
+  _quality: "data" | "data-saver" = "data-saver",
   signal?: AbortSignal,
 ): Promise<string[]> {
-  if (!/^[0-9a-f-]{36}$/i.test(chapterId)) {
-    throw new Error("Identifiant de chapitre MangaDex invalide.");
-  }
-  const response = await apiJson<{
-    baseUrl?: string;
-    chapter?: { hash?: string; data?: string[]; dataSaver?: string[] };
-  }>(`/at-home/server/${chapterId}`, signal);
-  const hash = response.chapter?.hash;
-  const pages = quality === "data" ? response.chapter?.data : response.chapter?.dataSaver;
-  if (!response.baseUrl || !hash || !pages?.length) {
-    throw new Error("MangaDex n'a renvoyé aucune page pour ce chapitre.");
-  }
-  const folder = quality === "data" ? "data" : "data-saver";
-  return pages.map((page) => `/api/mangadex-image?url=${encodeURIComponent(`${response.baseUrl}/${folder}/${hash}/${page}`)}`);
+  if (signal?.aborted) throw new DOMException("Request aborted", "AbortError");
+  return [];
 }
