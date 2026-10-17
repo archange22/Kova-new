@@ -1071,12 +1071,13 @@ export default function App() {
             </div>
             {user && (
               <div className="anilist-sync-panel">
-              <div>
-                <span className="section-kicker">MODE DÉVELOPPEMENT</span>
-                <h2>Catalogue local de démonstration</h2>
-                <p>Les API de catalogue et de métadonnées sont désactivées. Les titres fictifs servent à tester l’interface, la navigation et la bibliothèque. La connexion Firebase reste active.</p>
+                <div>
+                  <span className="section-kicker">MODE DÉVELOPPEMENT</span>
+                  <h2>Catalogue local de démonstration</h2>
+                  <p>Les APIs de catalogue et de métadonnées sont désactivées. Les titres fictifs servent à tester l’interface, la navigation et la bibliothèque. La connexion Firebase reste active.</p>
+                </div>
               </div>
-            </div>
+            )}
             {!user ? (
               <div className="empty-panel"><span className="empty-icon"><LibraryBig size={26} /></span><h2>Ta bibliothèque t’attend</h2><p>Connecte-toi pour synchroniser tes favoris et suivre l’avancement de tes lectures.</p><button className="primary-button" onClick={() => setAuthOpen(true)}><LogIn size={17} /> Se connecter</button></div>
             ) : library.length === 0 ? (
