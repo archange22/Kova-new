@@ -37,7 +37,8 @@ import {
   X,
 } from "lucide-react";
 import { auth, db } from "./lib/firebase";
-import { fetchCatalog, fetchMangaDexChapters, fetchMangaDexChapterPages } from "./lib/catalog";\nimport { enrichWithAniList } from "./lib/anilist";
+import { fetchCatalog, fetchMangaDexChapters, fetchMangaDexChapterPages } from "./lib/catalog";
+import { enrichWithAniList } from "./lib/anilist";
 import type { CatalogItem, CatalogKind, CatalogPage } from "./lib/catalog";
 
 type Profile = {
@@ -762,6 +763,8 @@ export default function App() {
               {selectedItem.cover ? <img src={selectedItem.cover} alt={`Couverture de ${selectedItem.title}`} /> : <span className="cover-placeholder"><BookOpen size={32} /><span>KOVA</span></span>}
             </div>
             <div className="detail-copy">
+              {selectedItem.anilistUrl && <a className="secondary-button full-button" href={selectedItem.anilistUrl} target="_blank" rel="noreferrer">Voir la fiche AniList ↗{selectedItem.anilistScore ? ` · ${selectedItem.anilistScore}/100` : ""}</a>}
+              {selectedItem.anilistGenres?.length ? <p className="alternate-title">Genres AniList : {selectedItem.anilistGenres.join(" · ")}</p> : null}
               {selectedItem.alternateTitle && <p className="alternate-title">{selectedItem.alternateTitle}</p>}
               <p>{selectedItem.description || "Aucun résumé disponible pour cette fiche."}</p>
               <div className="detail-facts"><span><small>Statut</small><strong>{selectedItem.status || "Non renseigné"}</strong></span><span><small>Langue</small><strong>{selectedItem.originalLanguage === "ko" ? "Coréen" : "Japonais"}</strong></span></div>
