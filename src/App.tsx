@@ -195,7 +195,7 @@ function removeUndefinedDeep(value: unknown): unknown {
   return value;
 }
 
-async function imageFileToDataUrl(file: File, maxBytes = 180 * 1024): Promise<string> {
+async function imageFileToDataUrl(file: File, maxBytes = 180 * 1024, maxDimension = 1400): Promise<string> {
   if (!file.type.startsWith("image/")) throw new Error("Choisis un fichier image.");
   if (file.size > 12 * 1024 * 1024) throw new Error("Image trop lourde. Choisis une image de moins de 12 Mo.");
   const source = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -206,7 +206,7 @@ async function imageFileToDataUrl(file: File, maxBytes = 180 * 1024): Promise<st
     image.src = url;
   });
   const canvas = document.createElement("canvas");
-  const scale = Math.min(1, 1400 / Math.max(source.width, source.height));
+  const scale = Math.min(1, maxDimension / Math.max(source.width, source.height));
   canvas.width = Math.max(1, Math.round(source.width * scale));
   canvas.height = Math.max(1, Math.round(source.height * scale));
   const context = canvas.getContext("2d");
@@ -651,7 +651,8 @@ export default function App() {
     if (!file) return;
     setNotice("");
     try {
-      const dataUrl = await imageFileToDataUrl(file, 180 * 1024);
+      const isAvatar = kind === "photoURL";
+      const dataUrl = await imageFileToDataUrl(file, isAvatar ? 105 * 1024 : 230 * 1024, isAvatar ? 640 : 1600);
       setProfileDraft((draft) => ({ ...draft, [kind]: dataUrl }));
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Impossible de traiter cette image.");
