@@ -33,7 +33,7 @@ export type CatalogPage = {
   hasMore: boolean;
 };
 
-const MANGADEX_API = "https://api.mangadex.org";
+const MANGADEX_API = "/api/mangadex";
 const PAGE_SIZE = 18;
 const SUPPORTED_LANGUAGES = ["fr", "en"] as const;
 
@@ -90,7 +90,7 @@ function mangaTitle(manga: MangaDexManga): string {
 
 function coverUrl(manga: MangaDexManga): string | undefined {
   const cover = manga.relationships?.find((relationship) => relationship.type === "cover_art")?.attributes?.fileName;
-  return cover ? `https://uploads.mangadex.org/covers/${manga.id}/${cover}.256.jpg` : undefined;
+  return cover ? `/api/mangadex-cover/${manga.id}/${cover}.256.jpg` : undefined;
 }
 
 function cleanDescription(manga: MangaDexManga): string {
@@ -258,5 +258,5 @@ export async function fetchMangaDexChapterPages(
     throw new Error("MangaDex n'a renvoyé aucune page pour ce chapitre.");
   }
   const folder = quality === "data" ? "data" : "data-saver";
-  return pages.map((page) => `${response.baseUrl}/${folder}/${hash}/${page}`);
+  return pages.map((page) => `/api/mangadex-image?url=${encodeURIComponent(`${response.baseUrl}/${folder}/${hash}/${page}`)}`);
 }
