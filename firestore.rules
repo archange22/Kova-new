@@ -9,12 +9,16 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
+    function isOwner() {
+      return signedIn()
+        && request.auth.uid == 'fL5Gz1lTOUY11JRu14KHKcDD95q1';
+    }
+
     function supportAdmin() {
-      return signedIn() && request.auth.uid in [
-        'fL5Gz1lTOUY11JRu14KHKcDD95q1',
-        'TIat7e3WQyXIk9HyLdjPxsfZ6R92',
-        'B23E8GVKHIUnzgdK5YScoiZzsnG3'
-      ];
+      return isOwner()
+        || (signedIn()
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'owner']);
     }
 
     function validSupportStatus(status) {
@@ -22,18 +26,38 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if ownsUser(userId);
+      // Members can read their own private account. The owner can inspect accounts
+      // to manage roles from the Firebase console.
+      allow read: if ownsUser(userId) || isOwner();
+
+      // New accounts are created by the app with the authenticated UID.
+      // Only the owner may create a privileged role.
       allow create: if ownsUser(userId)
-        && request.resource.data.uid == userId;
-      // Allow a one-time safe migration for older user documents that were created
-      // without a uid field, while preserving the original createdAt value.
-      allow update: if ownsUser(userId)
-        && (
-          !resource.data.keys().hasAny(['uid'])
-          || request.resource.data.uid == resource.data.uid
-        )
         && request.resource.data.uid == userId
-        && request.resource.data.createdAt == resource.data.createdAt;
+        && (
+          !request.resource.data.keys().hasAny(['role'])
+          || request.resource.data.role == 'user'
+          || (isOwner() && request.resource.data.role == 'owner')
+        );
+
+      // Users may update their own profile but cannot promote themselves.
+      allow update: if (
+        ownsUser(userId)
+        && request.resource.data.uid == userId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (
+          !request.resource.data.keys().hasAny(['role'])
+          || request.resource.data.role == resource.data.role
+        )
+      ) || (
+        isOwner()
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
+        && request.resource.data.role in ['user', 'admin', 'owner']
+      );
+
+      // Account deletion is self-service only; role management remains owner-only.
       allow delete: if ownsUser(userId);
 
       match /library/{itemId} {
