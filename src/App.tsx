@@ -53,7 +53,7 @@ type Profile = {
 type LibraryStatus = "to_read" | "reading" | "completed" | "paused" | "dropped";
 type LibraryEntry = CatalogItem & { libraryStatus: LibraryStatus };
 
-type Screen = "home" | "explore" | "library" | "reader";
+type Screen = "home" | "explore" | "library" | "detail" | "login" | "reader";
 
 const kindOptions: Array<{ value: CatalogKind; label: string }> = [
   { value: "all", label: "Tout" },
@@ -108,6 +108,15 @@ function validHttpUrl(value: string) {
   } catch {
     return "";
   }
+}
+
+function slugifyTitle(value: string) {
+  return value.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "manga";
+}
+function titlePath(item: CatalogItem) { return "/" + slugifyTitle(item.title); }
+function chapterPath(item: CatalogItem, chapterId: string) {
+  return titlePath(item) + "/chapitre/" + encodeURIComponent(chapterId);
 }
 
 function MediaCard({
@@ -165,7 +174,15 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile>({});
   const [loadingAuth, setLoadingAuth] = useState(true);
-  const [screen, setScreen] = useState<Screen>("home");
+  const [screen, setScreen] = useState<Screen>(() => {
+    const path = window.location.pathname;
+    if (path === "/explorer") return "explore";
+    if (path === "/bibliotheque") return "library";
+    if (path === "/connexion") return "login";
+    return "home";
+  });
+  const [routePath, setRoutePath] = useState(() => window.location.pathname);
+  const lastResolvedPath = useRef("");
   const [readerReturnScreen, setReaderReturnScreen] = useState<Exclude<Screen, "reader">>("explore");
   const [selectedKind, setSelectedKind] = useState<CatalogKind>("all");
   const [query, setQuery] = useState("");
@@ -328,12 +345,118 @@ export default function App() {
     };
   }, [selectedKind, query, refreshIndex]);
 
+  function navigatePath(path: string, replace = false) {
+    if (window.location.pathname !== path) {
+      if (replace) window.history.replaceState(null, "", path);
+      else window.history.pushState(null, "", path);
+    }
+    lastResolvedPath.current = path;
+    setRoutePath(path);
+  }
+
+  useEffect(() => {
+    const handlePopState = () => {
+      lastResolvedPath.current = "";
+      setRoutePath(window.location.pathname);
+      setAuthOpen(false);
+      setProfileOpen(false);
+      setSettingsOpen(false);
+      setSelectedItem(null);
+      setReaderOpen(false);
+      setNotice("");
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  useEffect(() => {
+    const path = routePath.replace(/\\/+$/, "") || "/";
+    if (lastResolvedPath.current === path) return;
+    lastResolvedPath.current = path;
+    if (path === "/") {
+      setScreen("home"); setSelectedItem(null); setReaderOpen(false); setAuthOpen(false); return;
+    }
+    if (path === "/explorer") {
+      setScreen("explore"); setSelectedItem(null); setReaderOpen(false); setAuthOpen(false); return;
+    }
+    if (path === "/bibliotheque") {
+      setScreen("library"); setSelectedItem(null); setReaderOpen(false); setAuthOpen(false); return;
+    }
+    if (path === "/connexion") {
+      setScreen("login"); setAuthOpen(false); return;
+    }
+    const segments = path.split("/").filter(Boolean);
+    const chapterIndex = segments.indexOf("chapitre");
+    const slug = segments[0];
+    const chapterId = chapterIndex >= 0 ? decodeURIComponent(segments[chapterIndex + 1] || "") : "";
+    if (!slug || slug === "lecteur") { setScreen("home"); navigatePath("/", true); return; }
+    let alive = true;
+    const controller = new AbortController();
+    const findRouteTitle = async () => {
+      try {
+        const searchText = slug.replace(/-/g, " ");
+        let result = items.find((candidate) => slugifyTitle(candidate.title) === slug);
+        if (!result) {
+          const page = await fetchCatalog("all", searchText, 0, controller.signal);
+          result = page.items.find((candidate) => slugifyTitle(candidate.title) === slug) || page.items[0];
+        }
+        if (!alive) return;
+        if (!result) {
+          setScreen("explore"); setQuery(searchText);
+          setNotice("Ce manga n’a pas été trouvé. Vérifie le titre ou cherche-le dans le catalogue.");
+          return;
+        }
+        const enriched = await enrichWithAniList([result], controller.signal);
+        if (!alive) return;
+        const detailed = await openTitle(enriched[0] || result, { updateRoute: false });
+        if (!alive || !chapterId) return;
+        let chapters = detailed.chapters ?? [];
+        let nextOffset = chapters.length;
+        let hasMoreChapters = chapters.length >= 100;
+        let chapter = chapters.find((entry) => entry.mangaDexChapterId === chapterId);
+        let paginationOffset = 100;
+        while (!chapter && hasMoreChapters && paginationOffset <= 1000 && alive) {
+          const nextPage = await fetchMangaDexChapters(detailed.id, paginationOffset);
+          chapters = [...chapters, ...nextPage.chapters];
+          chapter = nextPage.chapters.find((entry) => entry.mangaDexChapterId === chapterId);
+          nextOffset = nextPage.nextOffset;
+          hasMoreChapters = nextPage.hasMore;
+          paginationOffset = nextPage.nextOffset;
+        }
+        if (!alive) return;
+        setSelectedItem({ ...detailed, chapters });
+        setChapterPageOffset(nextOffset);
+        setChapterPageHasMore(hasMoreChapters);
+        if (chapter) {
+          await openMangaDexChapter(chapter.mangaDexChapterId, chapter.title, { updateRoute: false, returnScreen: "detail" });
+        } else {
+          setScreen("detail");
+          setNotice("Le manga est ouvert, mais ce chapitre n’apparaît pas dans les chapitres actuellement accessibles.");
+        }
+      } catch (error) {
+        if (!alive || (error instanceof DOMException && error.name === "AbortError")) return;
+        setScreen("explore");
+        setNotice(error instanceof Error ? error.message : "Impossible d’ouvrir cette adresse KOVA.");
+      }
+    };
+    void findRouteTitle();
+    return () => { alive = false; controller.abort(); };
+  }, [routePath]);
+
   function goTo(nextScreen: Screen) {
     setScreen(nextScreen);
-    if (nextScreen !== "reader") {
+    if (nextScreen !== "reader" && nextScreen !== "detail" && nextScreen !== "login") {
       setSelectedItem(null);
       setReaderOpen(false);
     }
+    if (nextScreen === "login") { setAuthMode("login"); setAuthOpen(false); }
+    const paths: Record<Screen, string> = {
+      home: "/", explore: "/explorer", library: "/bibliotheque",
+      detail: selectedItem ? titlePath(selectedItem) : "/",
+      login: "/connexion",
+      reader: selectedItem && readerChapterId ? chapterPath(selectedItem, readerChapterId) : "/",
+    };
+    navigatePath(paths[nextScreen]);
     setMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -341,6 +464,7 @@ export default function App() {
   function chooseKind(kind: CatalogKind) {
     setSelectedKind(kind);
     setScreen("explore");
+    navigatePath("/explorer");
     setMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -369,6 +493,7 @@ export default function App() {
       }
       setPassword("");
       setAuthOpen(false);
+      if (screen === "login") goTo("home");
     } catch (error) {
       setNotice(friendlyError(error));
     } finally {
@@ -464,8 +589,8 @@ export default function App() {
 
   async function saveToLibrary(item: CatalogItem) {
     if (!user) {
-      setAuthMode("signup");
-      setAuthOpen(true);
+      setAuthMode("login");
+      goTo("login");
       setNotice("Connecte-toi pour synchroniser ta bibliothèque.");
       return;
     }
@@ -559,10 +684,12 @@ export default function App() {
     }
   }
 
-  async function openTitle(item: CatalogItem) {
+  async function openTitle(item: CatalogItem, options: { updateRoute?: boolean } = {}): Promise<CatalogItem> {
     const requestId = ++chapterListRequestId.current;
     readerPagesRequestId.current += 1;
     setSelectedItem(item);
+    setScreen("detail");
+    if (options.updateRoute !== false) navigatePath(titlePath(item));
     setReaderOpen(false);
     setChapterListError("");
     setChapterListLoading(!item.chapters?.length);
@@ -574,24 +701,25 @@ export default function App() {
     setReaderChapterPages([]);
     setReaderChapterId("");
     setReaderChapterTitle("");
-
     if (item.chapters?.length) {
       setChapterListLoading(false);
-      return;
+      return item;
     }
-
     try {
       const page = await fetchMangaDexChapters(item.id);
-      if (requestId !== chapterListRequestId.current) return;
-      setSelectedItem((current) => current?.id === item.id ? { ...current, chapters: page.chapters } : current);
+      if (requestId !== chapterListRequestId.current) return item;
+      const detailedItem = { ...item, chapters: page.chapters };
+      setSelectedItem((current) => current?.id === item.id ? detailedItem : current);
       setChapterPageOffset(page.nextOffset);
       setChapterPageHasMore(page.hasMore);
       if (page.chapters.length === 0 && !page.hasMore) {
         setChapterListError("Aucun chapitre lisible en français ou en anglais n'est disponible dans MangaDex pour ce titre.");
       }
+      return detailedItem;
     } catch (error) {
-      if (requestId !== chapterListRequestId.current) return;
+      if (requestId !== chapterListRequestId.current) return item;
       setChapterListError(error instanceof Error ? error.message : "Impossible de récupérer les chapitres MangaDex.");
+      return item;
     } finally {
       if (requestId === chapterListRequestId.current) setChapterListLoading(false);
     }
@@ -634,15 +762,20 @@ export default function App() {
     }
   }
 
-  async function openMangaDexChapter(chapterId: string, chapterTitle: string) {
+  async function openMangaDexChapter(
+    chapterId: string,
+    chapterTitle: string,
+    options: { updateRoute?: boolean; returnScreen?: Exclude<Screen, "reader"> } = {},
+  ) {
     const requestId = ++readerPagesRequestId.current;
     setReaderLoading(true);
     setReaderError("");
     setReaderChapterPages([]);
     setReaderChapterId(chapterId);
     setReaderChapterTitle(chapterTitle);
-    if (screen !== "reader") setReaderReturnScreen(screen);
+    if (screen !== "reader") setReaderReturnScreen(options.returnScreen ?? screen);
     setScreen("reader");
+    if (selectedItem && options.updateRoute !== false) navigatePath(chapterPath(selectedItem, chapterId));
     setMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
     try {
@@ -727,7 +860,7 @@ export default function App() {
               {profile.photoURL ? <img className="avatar" src={profile.photoURL} alt="" /> : <span className="avatar">{displayName.slice(0, 1).toUpperCase()}</span>}
               <span className="profile-name">{displayName}</span>
             </button>
-          ) : <button className="login-link" onClick={() => { setAuthMode("signup"); setAuthOpen(true); }}><LogIn size={16} /> Connexion</button>}
+          ) : <button className="login-link" onClick={() => goTo("login")}><LogIn size={16} /> Connexion</button>}
           <button className="icon-button settings-button" aria-label="Ouvrir les réglages" onClick={() => setSettingsOpen(true)}><Settings size={18} /></button>
         </div>
       </header>
@@ -735,6 +868,28 @@ export default function App() {
       {menuOpen && <button className="menu-backdrop" aria-label="Fermer le menu" onClick={() => setMenuOpen(false)} />}
 
       <main>
+        {screen === "login" && (
+          <section className="auth-route-page page-section">
+            <div className="auth-route-card">
+              <span className="section-kicker">KOVA / TON ESPACE</span>
+              <h1>{authMode === "login" ? "Bon retour." : "Bienvenue dans KOVA."}</h1>
+              <p className="auth-route-intro">Connecte-toi pour retrouver ta bibliothèque et reprendre tes lectures sur tous tes appareils.</p>
+              <div className="auth-tabs">
+                <button type="button" className={authMode === "login" ? "selected" : ""} onClick={() => setAuthMode("login")}>Connexion</button>
+                <button type="button" className={authMode === "signup" ? "selected" : ""} onClick={() => setAuthMode("signup")}>Créer un compte</button>
+              </div>
+              <form className="form-stack" onSubmit={handleAuth}>
+                {authMode === "signup" && <label>Pseudonyme<input autoComplete="nickname" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Ton pseudo KOVA" maxLength={30} required /></label>}
+                <label>Adresse e-mail<input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="toi@exemple.com" /></label>
+                <label>Mot de passe<input type="password" autoComplete={authMode === "signup" ? "new-password" : "current-password"} minLength={6} required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="6 caractères minimum" /></label>
+                {notice && <p className="auth-route-notice" role="status">{notice}</p>}
+                <button className="primary-button full-button" type="submit" disabled={busy}>{busy ? "Patiente…" : authMode === "signup" ? "Créer mon compte" : "Me connecter"} <ArrowRight size={17} /></button>
+              </form>
+              <p className="modal-footnote"><ShieldCheck size={14} /> Ton mot de passe est géré par Firebase Authentication.</p>
+            </div>
+          </section>
+        )}
+
         {screen === "home" && (
           <>
             <section className="hero" id="accueil">
@@ -886,7 +1041,7 @@ export default function App() {
         {screen === "reader" && (
           <section className="full-reader-page" aria-label="Lecteur manga MangaDex">
             <div className="reader-page-toolbar">
-              <button className="secondary-button" onClick={() => { setScreen(readerReturnScreen); setReaderOpen(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}><ArrowRight className="reader-back-icon" size={16} /> Retour à la fiche</button>
+              <button className="secondary-button" onClick={() => { setScreen(readerReturnScreen); setReaderOpen(true); if (selectedItem) navigatePath(titlePath(selectedItem)); window.scrollTo({ top: 0, behavior: "smooth" }); }}><ArrowRight className="reader-back-icon" size={16} /> Retour à la fiche</button>
               <div className="reader-page-title"><strong>{selectedItem?.title ?? "Lecture MangaDex"}</strong><span>{readerChapterTitle}</span></div>
               {readerChapterId && <span className="reader-in-site-label"><ShieldCheck size={15} /> Lecture intégrée dans KOVA</span>}
             </div>
@@ -973,8 +1128,14 @@ export default function App() {
         </Modal>
       )}
 
-      {selectedItem && screen !== "reader" && (
-        <Modal title={selectedItem.title} subtitle={`${selectedItem.kind === "manhwa" ? "Manhwa" : "Manga"} · ${selectedItem.year ?? "Année inconnue"} · MangaDex`} onClose={() => { setSelectedItem(null); setReaderOpen(false); setReaderChapterPages([]); setReaderChapterId(""); setReaderError(""); }} wide>
+      {selectedItem && screen === "detail" && (
+        <section className="title-detail-page page-section">
+          <div className="detail-route-heading">
+            <button className="secondary-button" onClick={() => goTo("explore")}><ArrowRight className="reader-back-icon" size={16} /> Retour au catalogue</button>
+            <span className="section-kicker">KOVA / FICHE MANGA</span>
+            <h1>{selectedItem.title}</h1>
+            <p>{selectedItem.kind === "manhwa" ? "Manhwa" : "Manga"} · {selectedItem.year ?? "Année inconnue"} · Source MangaDex</p>
+          </div>
           <div className="detail-layout">
             <div className="detail-cover">
               {selectedItem.cover ? <img src={selectedItem.cover} alt={`Couverture de ${selectedItem.title}`} /> : <span className="cover-placeholder"><BookOpen size={32} /><span>KOVA</span></span>}
@@ -1027,7 +1188,7 @@ export default function App() {
               </div>
             </section>
           ) : null}
-        </Modal>
+        </section>
       )}
       {loadingAuth && <div className="session-indicator">Vérification de la session…</div>}
     </div>
