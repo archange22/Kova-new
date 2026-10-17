@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import {
   createUserWithEmailAndPassword,
+  GoogleAuthProvider,
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  signInWithPopup,
   sendPasswordResetEmail,
   signOut,
   updateProfile,
@@ -28,6 +30,8 @@ import {
   BookOpen,
   Check,
   Compass,
+  Eye,
+  EyeOff,
   Heart,
   LibraryBig,
   LifeBuoy,
@@ -54,6 +58,7 @@ type Profile = {
   photoURL?: string;
   bannerURL?: string;
   email?: string;
+  role?: "user" | "admin";
 };
 
 type LibraryStatus = "to_read" | "reading" | "completed" | "paused" | "dropped";
@@ -158,6 +163,12 @@ function friendlyError(error: unknown) {
     "auth/invalid-email": "Cette adresse e-mail n'est pas valide.",
     "auth/too-many-requests": "Trop de tentatives. Réessaie un peu plus tard.",
     "auth/network-request-failed": "Connexion impossible. Vérifie ton réseau.",
+    "auth/operation-not-allowed": "Cette méthode de connexion n'est pas activée dans Firebase Authentication.",
+    "auth/unauthorized-domain": "Ce domaine n'est pas autorisé dans Firebase Authentication. Ajoute le domaine de KOVA dans les domaines autorisés.",
+    "auth/popup-blocked": "Le navigateur a bloqué la fenêtre Google. Autorise les fenêtres contextuelles puis réessaie.",
+    "auth/popup-closed-by-user": "La connexion Google a été annulée avant la fin.",
+    "auth/cancelled-popup-request": "Une autre fenêtre de connexion est déjà ouverte. Réessaie.",
+    "auth/account-exists-with-different-credential": "Un compte existe déjà avec cet e-mail. Connecte-toi d'abord avec ta méthode habituelle.",
     "permission-denied": "Firebase a refusé l'accès. Vérifie les règles Firestore publiées.",
     "unavailable": "Firebase est momentanément indisponible. Réessaie plus tard.",
   };
@@ -296,6 +307,8 @@ export default function App() {
   const [profileDraft, setProfileDraft] = useState({ username: "", bio: "", photoURL: "", bannerURL: "" });
   const [profileBusy, setProfileBusy] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
   const [notice, setNotice] = useState("");
 
@@ -330,6 +343,7 @@ export default function App() {
             bio: "",
             photoURL: currentUser.photoURL || "",
             bannerURL: "",
+            role: currentUser.uid === "fL5Gz1lTOUY11JRu14KHKcDD95q1" ? "admin" : "user",
           };
           await setDoc(profileRef, {
             uid: currentUser.uid,
@@ -433,7 +447,14 @@ export default function App() {
         const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
         const chosenName = username.trim() || email.trim().split("@")[0];
         await updateProfile(credential.user, { displayName: chosenName });
-        const newProfile = { username: chosenName, email: credential.user.email || email.trim(), bio: "", photoURL: "", bannerURL: "" };
+        const newProfile = {
+          username: chosenName,
+          email: credential.user.email || email.trim(),
+          bio: "",
+          photoURL: "",
+          bannerURL: "",
+          role: credential.user.uid === "fL5Gz1lTOUY11JRu14KHKcDD95q1" ? "admin" : "user",
+        };
         await setDoc(doc(db, "users", credential.user.uid), {
           uid: credential.user.uid,
           ...newProfile,
@@ -447,12 +468,59 @@ export default function App() {
         setNotice("Connexion réussie.");
       }
       setPassword("");
+      setPasswordVisible(false);
       setAuthOpen(false);
       if (routePath === "/connexion") navigatePath("/", true);
     } catch (error) {
       setNotice(friendlyError(error));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleGoogleAuth() {
+    setNotice("");
+    setGoogleBusy(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
+      const result = await signInWithPopup(auth, provider);
+      const googleUser = result.user;
+      const profileRef = doc(db, "users", googleUser.uid);
+      const profileSnapshot = await getDoc(profileRef);
+
+      if (profileSnapshot.exists()) {
+        setProfile(profileSnapshot.data() as Profile);
+      } else {
+        const chosenName = googleUser.displayName?.trim()
+          || googleUser.email?.split("@")[0]
+          || "Lecteur";
+        const newProfile = {
+          username: chosenName,
+          email: googleUser.email || "",
+          bio: "",
+          photoURL: googleUser.photoURL || "",
+          bannerURL: "",
+          role: googleUser.uid === "fL5Gz1lTOUY11JRu14KHKcDD95q1" ? "admin" : "user",
+        };
+        await setDoc(profileRef, {
+          uid: googleUser.uid,
+          ...newProfile,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        setProfile(newProfile);
+      }
+
+      setPassword("");
+      setPasswordVisible(false);
+      setAuthOpen(false);
+      setNotice("Connexion Google réussie. Bienvenue dans KOVA !");
+      if (routePath === "/connexion") navigatePath("/", true);
+    } catch (error) {
+      setNotice(friendlyError(error));
+    } finally {
+      setGoogleBusy(false);
     }
   }
 
@@ -1178,20 +1246,42 @@ export default function App() {
       {notice && <div className="notice-toast" role="status"><span>{notice}</span><button onClick={() => setNotice("")} aria-label="Fermer le message"><X size={16} /></button></div>}
 
       {authOpen && (
-        <Modal title={authMode === "signup" ? "Rejoins KOVA" : "Content de te revoir"} subtitle="Ton espace de lecture, sauvegardé entre tes sessions." onClose={() => { setAuthOpen(false); navigatePath(routePath === "/connexion" || routePath === "/support" ? "/" : routePath, true); }}>
-          <div className="auth-tabs"><button className={authMode === "signup" ? "selected" : ""} onClick={() => { setAuthMode("signup"); setNotice(""); }}>Créer un compte</button><button className={authMode === "login" ? "selected" : ""} onClick={() => { setAuthMode("login"); setNotice(""); }}>Connexion</button></div>
+        <Modal title={authMode === "signup" ? "Rejoins KOVA" : "Content de te revoir"} subtitle="Un compte, toute ta bibliothèque manga et manhwa, synchronisée entre tes sessions." onClose={() => { setAuthOpen(false); navigatePath(routePath === "/connexion" || routePath === "/support" ? "/" : routePath, true); }}>
+          <div className="auth-methods">
+            <button className="google-auth-button" type="button" onClick={() => void handleGoogleAuth()} disabled={busy || googleBusy}>
+              <svg className="google-auth-mark" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.55-.2-2.27H12v4.3h6.44a5.5 5.5 0 0 1-2.39 3.61v2.95h3.87c2.27-2.09 3.57-5.16 3.57-8.59z" />
+                <path fill="#34A853" d="M12 24c3.24 0 5.96-1.08 7.95-2.93l-3.87-2.95c-1.08.72-2.46 1.15-4.08 1.15-3.14 0-5.8-2.12-6.75-4.97H1.25v3.04C3.23 21.15 7.27 24 12 24z" />
+                <path fill="#FBBC05" d="M5.25 14.3a7.2 7.2 0 0 1 0-4.6V6.66H1.25a12 12 0 0 0 0 10.68z" />
+                <path fill="#EA4335" d="M12 4.75c1.77 0 3.36.61 4.61 1.82l3.44-3.44C17.95 1.19 15.24 0 12 0 7.27 0 3.23 2.85 1.25 6.66l4 3.04c.95-2.85 3.61-4.95 6.75-4.95z" />
+              </svg>
+              <span>{googleBusy ? "Connexion avec Google…" : "Continuer avec Google"}</span>
+            </button>
+            <div className="auth-divider"><span>OU AVEC TON E-MAIL</span></div>
+          </div>
+          <div className="auth-tabs" role="tablist" aria-label="Méthode de compte">
+            <button type="button" role="tab" aria-selected={authMode === "signup"} className={authMode === "signup" ? "selected" : ""} onClick={() => { setAuthMode("signup"); setPasswordVisible(false); setNotice(""); }}>Créer un compte</button>
+            <button type="button" role="tab" aria-selected={authMode === "login"} className={authMode === "login" ? "selected" : ""} onClick={() => { setAuthMode("login"); setPasswordVisible(false); setNotice(""); }}>Connexion</button>
+          </div>
           <form className="form-stack" onSubmit={handleAuth}>
             {authMode === "signup" && <label>Pseudonyme<input autoComplete="nickname" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Ton pseudo KOVA" maxLength={30} /></label>}
             <label>Adresse e-mail<input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="toi@exemple.com" /></label>
-            <label>Mot de passe<input type="password" autoComplete={authMode === "signup" ? "new-password" : "current-password"} minLength={6} required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="6 caractères minimum" /></label>
-            <button className="primary-button full-button" type="submit" disabled={busy}>{busy ? "Patiente…" : authMode === "signup" ? "Créer mon compte" : "Me connecter"} <ArrowRight size={17} /></button>
+            <label>Mot de passe
+              <span className="auth-password-wrap">
+                <input type={passwordVisible ? "text" : "password"} autoComplete={authMode === "signup" ? "new-password" : "current-password"} minLength={6} required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="6 caractères minimum" />
+                <button className="password-visibility" type="button" onClick={() => setPasswordVisible((visible) => !visible)} aria-label={passwordVisible ? "Masquer le mot de passe" : "Afficher le mot de passe"} title={passwordVisible ? "Masquer le mot de passe" : "Afficher le mot de passe"} disabled={busy || googleBusy}>
+                  {passwordVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </span>
+            </label>
+            <button className="primary-button full-button" type="submit" disabled={busy || googleBusy}>{busy ? "Patiente…" : authMode === "signup" ? "Créer mon compte" : "Me connecter"} <ArrowRight size={17} /></button>
             {authMode === "login" && (
-              <button className="auth-reset-link" type="button" onClick={() => void handlePasswordReset()} disabled={resetBusy || busy}>
+              <button className="auth-reset-link" type="button" onClick={() => void handlePasswordReset()} disabled={resetBusy || busy || googleBusy}>
                 {resetBusy ? "Envoi du lien…" : "Mot de passe oublié ?"}
               </button>
             )}
           </form>
-          <p className="modal-footnote"><ShieldCheck size={14} /> Authentification gérée par Firebase. Ton mot de passe n’est pas stocké dans ton profil KOVA.</p>
+          <p className="modal-footnote"><ShieldCheck size={14} /> Connexion sécurisée par Firebase. Ton mot de passe n’est pas enregistré dans ton profil KOVA.</p>
         </Modal>
       )}
 
