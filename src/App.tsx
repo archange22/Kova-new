@@ -940,17 +940,17 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <button className="mobile-menu icon-button" aria-label="Ouvrir le menu" onClick={() => setMenuOpen((open) => !open)}>
+        <button className="mobile-menu icon-button" aria-label={menuOpen ? "Fermer le menu" : "Ouvrir le menu"} aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen((open) => !open)}>
           {menuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
         <button className="brand" onClick={() => goTo("home")} aria-label="KOVA accueil">
           <span className="brand-mark">K</span><span>KOVA</span><span className="brand-dot">.</span>
         </button>
-        <nav className={menuOpen ? "nav-links nav-open" : "nav-links"}>
-          <button className={screen === "home" ? "nav-link active" : "nav-link"} onClick={() => goTo("home")}><Compass size={16} /> Accueil</button>
-          <button className={screen === "explore" ? "nav-link active" : "nav-link"} onClick={() => goTo("explore")}><Search size={16} /> Explorer</button>
-          <button className={screen === "library" ? "nav-link active" : "nav-link"} onClick={() => goTo("library")}><LibraryBig size={16} /> Bibliothèque</button>
-          <button className={supportOpen ? "nav-link active" : "nav-link"} onClick={openSupport}><LifeBuoy size={16} /> Support / tickets</button>
+        <nav id="primary-navigation" aria-label="Navigation principale" className={menuOpen ? "nav-links nav-open" : "nav-links"}>
+          <button className={screen === "home" ? "nav-link active" : "nav-link"} onClick={() => { setMenuOpen(false); goTo("home"); }}><Compass size={16} /> Accueil</button>
+          <button className={screen === "explore" ? "nav-link active" : "nav-link"} onClick={() => { setMenuOpen(false); goTo("explore"); }}><Search size={16} /> Explorer</button>
+          <button className={screen === "library" ? "nav-link active" : "nav-link"} onClick={() => { setMenuOpen(false); goTo("library"); }}><LibraryBig size={16} /> Bibliothèque</button>
+          <button className={supportOpen ? "nav-link active" : "nav-link"} onClick={() => { setMenuOpen(false); openSupport(); }}><LifeBuoy size={16} /> Support / tickets</button>
         </nav>
         <div className="top-actions">
           <button className="icon-button search-button" aria-label="Lancer une recherche" onClick={() => { goTo("explore"); document.getElementById("catalog-search")?.focus(); }}><Search size={19} /></button>
