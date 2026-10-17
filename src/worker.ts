@@ -4,6 +4,7 @@ type Env = {
 
 const API_ORIGIN = "https://api.mangadex.org";
 const COVER_ORIGIN = "https://uploads.mangadex.org";
+const ANILIST_ORIGIN = "https://graphql.anilist.co";
 
 function corsHeaders(origin: string) {
   return {
