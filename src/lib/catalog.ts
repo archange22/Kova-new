@@ -25,6 +25,11 @@ export type CatalogItem = {
   originalLanguage?: string;
   sourceUrl: string;
   chapters?: ReadableChapter[];
+  anilistId?: number;
+  anilistUrl?: string;
+  anilistTitle?: string;
+  anilistScore?: number;
+  anilistGenres?: string[];
 };
 
 export type CatalogPage = {
