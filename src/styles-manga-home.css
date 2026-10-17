@@ -1,0 +1,300 @@
+/* Manga-only UI merge: brings back the purple/fuchsia/cyan identity of the pre-drama KOVA home
+   while keeping Kova-new's existing React interactions, catalogue, reader, Firebase and calendar. */
+
+:root {
+  --bg: #0b0915;
+  --panel: #151124;
+  --panel-2: #1b1630;
+  --panel-3: #241b3a;
+  --panel-soft: #1b1630;
+  --line: rgba(211, 190, 255, .13);
+  --line-bright: rgba(196, 165, 255, .3);
+  --text: #f7f4ff;
+  --white: #f7f4ff;
+  --muted: #aaa0c3;
+  --coral: #c4a5ff;
+  --orange: #67e8f9;
+  --purple: #c4a5ff;
+  --purple-2: #9568f4;
+  --pink: #f0abff;
+  --green: #8de4c1;
+  --kova-glow: rgba(168, 85, 247, .17);
+  --kova-glow-soft: rgba(103, 232, 249, .07);
+  --kova-card: rgba(21, 17, 36, .94);
+  --kova-border: rgba(211, 190, 255, .13);
+  --font-display: "Space Grotesk", sans-serif;
+}
+
+html { scroll-padding-top: 96px; }
+body {
+  background:
+    radial-gradient(ellipse at 48% -15%, rgba(124, 58, 237, .22), transparent 43%),
+    radial-gradient(ellipse at 100% 48%, rgba(34, 211, 238, .07), transparent 34%),
+    #0b0915;
+  color: var(--white);
+}
+::selection { color: #170e2c; background: #c4a5ff; }
+
+.topbar {
+  border-bottom-color: rgba(211, 190, 255, .12);
+  background: rgba(11, 9, 21, .92);
+  backdrop-filter: blur(22px);
+}
+.brand-mark {
+  color: #180e2c;
+  background: linear-gradient(135deg, #f0abff 0%, #bda0ff 50%, #67e8f9 100%);
+  box-shadow: 0 7px 26px rgba(168, 85, 247, .24);
+}
+.brand-dot { color: #f0abff; }
+.nav-link:hover, .nav-link.active {
+  color: #faf7ff;
+  border-color: rgba(196, 165, 255, .16);
+  background: rgba(168, 85, 247, .13);
+}
+.nav-link.active svg { color: #d5baff; }
+.icon-button { border-color: var(--line); background: rgba(255,255,255,.035); }
+.icon-button:hover { border-color: rgba(196,165,255,.4); color: #f7f4ff; }
+.login-link, .profile-chip {
+  border-color: rgba(196, 165, 255, .25);
+  background: rgba(168, 85, 247, .11);
+}
+.avatar { border-color: rgba(196, 165, 255, .42); }
+
+.hero {
+  border-color: rgba(196, 165, 255, .2);
+  background:
+    radial-gradient(ellipse at 8% 95%, rgba(168, 85, 247, .2), transparent 47%),
+    radial-gradient(ellipse at 92% 12%, rgba(34, 211, 238, .11), transparent 38%),
+    linear-gradient(125deg, #19142a, #110e1d 56%, #20152f);
+  box-shadow: 0 24px 75px rgba(0, 0, 0, .2);
+}
+.hero::before {
+  background: radial-gradient(ellipse, rgba(168, 85, 247, .18), transparent 68%);
+}
+.hero::after { background: linear-gradient(100deg, transparent 35%, rgba(103, 232, 249, .045)); }
+.hero h1 span { color: #d0b6ff; }
+.eyebrow, .section-kicker { color: #d1b8ff; }
+.eyebrow {
+  border-color: rgba(196, 165, 255, .24);
+  background: rgba(168, 85, 247, .09);
+}
+.hero-copy > p { color: #c0b7d4; }
+.hero-trust svg { color: #8de4c1; }
+
+.art-center {
+  border-color: rgba(196, 165, 255, .3);
+  background: linear-gradient(150deg, #32204e, #171326 66%);
+  box-shadow: 0 22px 70px rgba(0,0,0,.32), inset 0 0 45px rgba(168,85,247,.08);
+}
+.art-center > span {
+  color: #d0b6ff;
+  text-shadow: 0 0 36px rgba(168, 85, 247, .38);
+}
+.art-center small { color: #a99cc5; }
+.art-orbit { border-color: rgba(196, 165, 255, .19); }
+.art-orbit.orbit-two { border-color: rgba(103, 232, 249, .14); }
+.floating-cover {
+  border-color: rgba(224, 210, 255, .2);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, .36);
+}
+.floating-cover:hover { border-color: rgba(103, 232, 249, .52); }
+.floating-cover img { object-fit: cover; }
+
+.hero-search {
+  border-color: rgba(196, 165, 255, .22);
+  background: rgba(17, 13, 30, .9);
+}
+.hero-search:focus-within { border-color: rgba(196, 165, 255, .65); }
+.hero-search input { color: var(--white); }
+.hero-search input::placeholder { color: #8f84a9; }
+.hero-search > button {
+  color: #170e2c;
+  background: linear-gradient(125deg, #dfcaff, #a78bfa 55%, #67e8f9);
+}
+.hero-tags span {
+  border-color: rgba(196, 165, 255, .17);
+  color: #c6b9e1;
+  background: rgba(168, 85, 247, .06);
+}
+.primary-button {
+  color: #170e2c;
+  background: linear-gradient(125deg, #dfcaff 0%, #b59aff 52%, #67e8f9 150%);
+  box-shadow: 0 8px 26px rgba(139, 92, 246, .2);
+}
+.primary-button:hover { box-shadow: 0 12px 30px rgba(139, 92, 246, .3); }
+.secondary-button {
+  border-color: var(--line-bright);
+  color: #f0eaff;
+  background: rgba(255,255,255,.035);
+}
+.secondary-button:hover {
+  border-color: rgba(103, 232, 249, .36);
+  background: rgba(168, 85, 247, .09);
+}
+.quiet-button { color: #d1c5e8; }
+.text-link { color: #d1b8ff; }
+.text-link:hover { color: #67e8f9; }
+
+.section-heading h2, .catalog-results-heading h2, .source-copy h2 {
+  color: var(--white);
+  letter-spacing: -.045em;
+}
+.section-heading p { color: var(--muted); }
+.quick-explore { padding-top: 44px; }
+.category-card, .category-card.manga-card, .category-card.manhwa-card {
+  border-color: var(--line);
+  background:
+    radial-gradient(ellipse at 100% 0%, rgba(168,85,247,.08), transparent 48%),
+    linear-gradient(135deg, #19152a, #151120 67%, #1c1730);
+}
+.category-card::after { background: rgba(168, 85, 247, .1); }
+.category-card:hover {
+  border-color: rgba(196, 165, 255, .36);
+  box-shadow: 0 12px 28px rgba(0,0,0,.15);
+}
+.category-card.manga-card .category-symbol {
+  color: #dfcaff;
+  background: rgba(168, 85, 247, .15);
+}
+.category-card.manhwa-card .category-symbol {
+  color: #8cf0fb;
+  background: rgba(34, 211, 238, .12);
+}
+.category-arrow { color: #c4a5ff; }
+
+.search-field, .hero-search {
+  box-shadow: none;
+}
+.search-field {
+  border-color: var(--line);
+  background: #151124;
+  color: #b9adcf;
+}
+.search-field:focus-within {
+  border-color: rgba(196,165,255,.58);
+  box-shadow: 0 0 0 3px rgba(168,85,247,.09);
+}
+.search-field input { color: var(--white); }
+.search-field input::placeholder { color: #8f84a9; }
+.filter-tab { border-color: var(--line); color: #aaa0c3; background: rgba(255,255,255,.025); }
+.filter-tab:hover { border-color: rgba(196,165,255,.36); color: #f7f4ff; }
+.filter-tab.selected {
+  border-color: rgba(196,165,255,.42);
+  color: #e4d5ff;
+  background: rgba(168,85,247,.14);
+}
+.catalog-count, .library-count { color: #d0b6ff; }
+
+.media-grid:not(.pulse-media-grid) .media-card {
+  border-color: var(--line);
+  background: #151124;
+}
+.media-grid:not(.pulse-media-grid) .media-card:hover {
+  border-color: rgba(196,165,255,.34);
+  background: #1b1630;
+}
+.media-grid:not(.pulse-media-grid) .cover-wrap { background: #211833; }
+.media-grid:not(.pulse-media-grid) .media-title { color: #f7f4ff; }
+.media-grid:not(.pulse-media-grid) .media-meta { color: #aaa0c3; }
+.media-grid:not(.pulse-media-grid) .media-source { color: #c4a5ff; }
+.media-grid:not(.pulse-media-grid) .save-chip {
+  border-color: rgba(224,210,255,.2);
+  background: rgba(15,11,25,.84);
+}
+.media-grid:not(.pulse-media-grid) .save-chip.is-saved {
+  color: #170e2c;
+  background: linear-gradient(135deg, #dfcaff, #b59aff 60%, #67e8f9);
+}
+.cover-placeholder { color: #d0b6ff; background: linear-gradient(150deg, #302047, #171326); }
+.cover-placeholder span { color: #d7c5ff; }
+.empty-icon { border-color: rgba(196,165,255,.22); color: #d0b6ff; background: rgba(168,85,247,.1); }
+.loading-panel, .empty-panel { color: var(--muted); }
+.error-panel { border-color: rgba(248,113,113,.28); }
+.loading-orb { border-color: rgba(196,165,255,.25); border-top-color: #c4a5ff; }
+
+.library-card { border-color: var(--line); background: #151124; }
+.library-card:hover { border-color: rgba(196,165,255,.32); background: #1b1630; }
+.status-select-label select { border-color: var(--line); color: var(--white); background: #100d1b; }
+.status-select-label select:focus { border-color: rgba(196,165,255,.58); }
+.remove-link { color: #c9a7d9; }
+.remove-link:hover { color: #f0abff; }
+.anilist-sync-panel, .source-section {
+  border-color: var(--line);
+  background: linear-gradient(125deg, rgba(38,25,61,.76), rgba(13,10,22,.94));
+}
+.source-copy p, .catalog-note { color: #aaa0c3; }
+.official-reading-note { border-color: rgba(196,165,255,.19); background: #151124; }
+.official-icon { color: #170e2c; background: linear-gradient(125deg, #dfcaff, #b59aff 60%, #67e8f9); }
+
+.pulse-disclaimer, .pulse-panel {
+  border-color: var(--line);
+  background: linear-gradient(145deg, rgba(27,21,46,.96), rgba(15,12,26,.98));
+}
+.pulse-disclaimer { color: #c9c0d9; }
+.pulse-disclaimer svg { color: #c4a5ff; }
+.pulse-panel-heading h3 { color: var(--white); }
+.pulse-live-dot, .pulse-count {
+  border-color: rgba(196,165,255,.24);
+  color: #e0d1ff;
+  background: rgba(168,85,247,.1);
+}
+.pulse-live-dot::before { background: #67e8f9; box-shadow: 0 0 9px rgba(103,232,249,.4); }
+.release-row, .calendar-day { border-color: var(--line); background: rgba(255,255,255,.02); }
+.release-row:hover { border-color: rgba(196,165,255,.32); background: rgba(168,85,247,.07); }
+.release-copy strong, .calendar-event-copy strong { color: var(--white); }
+.release-copy > span, .calendar-event-copy small { color: #b8a7d2; }
+.release-arrow, .calendar-event > svg { color: #c4a5ff; }
+.calendar-day h4 { color: #dfcaff; }
+
+.modal-backdrop { background: rgba(5, 3, 13, .82); }
+.modal-card {
+  border-color: rgba(211,190,255,.16);
+  background: linear-gradient(145deg, #1a1530, #100d1c 76%);
+}
+.modal-title { color: var(--white); }
+.modal-subtitle, .modal-footnote { color: var(--muted); }
+.auth-tabs button { border-color: var(--line); color: var(--muted); background: #100d1b; }
+.auth-tabs button.active, .auth-tabs button.selected {
+  border-color: rgba(196,165,255,.36);
+  color: #e4d5ff;
+  background: rgba(168,85,247,.12);
+}
+.form-stack label { color: #e1d8f0; }
+.form-stack input, .form-stack textarea {
+  border-color: var(--line);
+  color: var(--white);
+  background: #100d1b;
+}
+.form-stack input:focus, .form-stack textarea:focus { border-color: rgba(196,165,255,.58); }
+.form-stack input::placeholder, .form-stack textarea::placeholder { color: #817695; }
+.auth-error { color: #ffb5bb; }
+.profile-preview, .banner-preview { border-color: var(--line); background: linear-gradient(135deg, #302047, #171326); }
+.setting-row { border-color: var(--line); }
+.setting-row:hover { border-color: rgba(196,165,255,.26); background: rgba(168,85,247,.045); }
+.setting-icon { color: #c4a5ff; }
+.setting-state { color: #d0b6ff; }
+
+.reader-page-toolbar { border-color: var(--line); background: rgba(11,9,21,.94); }
+.reader-page-controls { border-color: var(--line); background: #151124; }
+.reader-page-title strong { color: var(--white); }
+.reader-page-title span, .reader-page-controls > span { color: var(--muted); }
+.reader-in-site-label { color: #8de4c1; }
+.reader-bottom-navigation { border-color: var(--line); }
+.reader-bottom-navigation > span, .reader-credit { color: var(--muted); }
+.reader-error { border-color: rgba(248,113,113,.3); color: #ffb7bd; background: rgba(248,113,113,.06); }
+.mangadex-chapter-row { border-color: var(--line); background: #151124; }
+.mangadex-chapter-row > span { color: var(--white); }
+.notice-toast { border-color: rgba(196,165,255,.27); color: var(--white); background: #211a38; }
+.session-indicator { border-color: var(--line); color: var(--muted); background: #151124; }
+.menu-backdrop { background: rgba(5,3,13,.76); }
+
+@media (max-width: 760px) {
+  .hero { border-radius: 23px; }
+  .hero-art { min-height: 210px; }
+  .category-card.manga-card .category-symbol, .category-card.manhwa-card .category-symbol { flex-shrink: 0; }
+  .pulse-media-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
