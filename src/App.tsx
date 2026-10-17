@@ -781,11 +781,11 @@ export default function App() {
       setChapterPageOffset(page.nextOffset);
       setChapterPageHasMore(page.hasMore);
       if (page.chapters.length === 0 && !page.hasMore) {
-        setChapterListError("Aucun chapitre de démonstration n’est disponible pour ce titre pour le moment. Les sources de contenu sont volontairement désactivées pendant l’amélioration de KOVA.");
+        setChapterListError("Aucun chapitre disponible sur MangaDex pour ce titre dans les langues prises en charge (français ou anglais).");
       }
     } catch (error) {
       if (requestId !== chapterListRequestId.current) return;
-      setChapterListError(error instanceof Error ? error.message : "Impossible de charger les chapitres de démonstration. Réessaie dans un instant.");
+      setChapterListError(error instanceof Error ? error.message : "Impossible de charger les chapitres MangaDex. Vérifie ta connexion puis réessaie.");
     } finally {
       if (requestId === chapterListRequestId.current) setChapterListLoading(false);
     }
@@ -1304,7 +1304,7 @@ export default function App() {
               <div className="anilist-sync-panel">
                 <div>
                   <span className="section-kicker">MODE DÉVELOPPEMENT</span>
-                  <h2>Catalogue local de démonstration</h2>
+                  <h2>Catalogue MangaDex en direct</h2>
                   <p>Les APIs de catalogue et de métadonnées sont désactivées. Les titres fictifs servent à tester l’interface, la navigation et la bibliothèque. La connexion Firebase reste active.</p>
                 </div>
               </div>
@@ -1349,16 +1349,16 @@ export default function App() {
               {readerChapterPages.length > 0 && <span>{readerChapterPages.length} pages</span>}
             </div>
             {readerError && <div className="reader-error"><p>{readerError}</p><button className="secondary-button" onClick={() => void openDemoChapter(readerChapterId, readerChapterTitle)}>Réessayer</button></div>}
-            {readerLoading && <LoadingState text="KOVA prépare les pages de démonstration…" />}
+            {readerLoading && <LoadingState text="Chargement des pages depuis MangaDex…" />}
             {!readerLoading && readerChapterPages.length > 0 && (
               <div className="mangadex-pages full-reader-pages">
                 {readerChapterPages.map((pageUrl, pageIndex) => <img key={pageUrl} src={pageUrl} alt={"Page " + (pageIndex + 1) + " · " + readerChapterTitle} loading={pageIndex < 2 ? "eager" : "lazy"} />)}
               </div>
             )}
-            {!readerLoading && !readerError && readerChapterPages.length === 0 && <EmptyState title="Aucune page chargée" text="Le lecteur est prêt côté interface, mais les pages de contenu restent désactivées dans cette version de démonstration." />}
+            {!readerLoading && !readerError && readerChapterPages.length === 0 && <EmptyState title="Aucune page chargée" text="Aucune page n’a été renvoyée par MangaDex pour ce chapitre. Essaie un autre chapitre ou change la qualité." />}
             <div className="reader-bottom-navigation">
               <button className="secondary-button" disabled={readerChapterIndex <= 0 || readerLoading} onClick={() => { const chapter = readerChapters[readerChapterIndex - 1]; if (chapter) void openDemoChapter(chapter.mangaDexChapterId, chapter.title); }}>← Chapitre précédent</button>
-              <span>{currentReaderChapter?.scanlationGroup ? "Traduction : " + currentReaderChapter.scanlationGroup : "Mode démonstration"}</span>
+              <span>{currentReaderChapter?.scanlationGroup ? "Groupe : " + currentReaderChapter.scanlationGroup : "Source : MangaDex"}</span>
               <button className="secondary-button" disabled={readerChapterIndex < 0 || readerChapterIndex >= readerChapters.length - 1 || readerLoading} onClick={() => { const chapter = readerChapters[readerChapterIndex + 1]; if (chapter) void openDemoChapter(chapter.mangaDexChapterId, chapter.title); }}>Chapitre suivant →</button>
             </div>
             <p className="reader-credit">Mode développement : aucune page ou source de lecture externe n’est chargée.</p>
@@ -1638,7 +1638,7 @@ export default function App() {
       )}
 
       {selectedItem && screen !== "reader" && !supportOpen && (
-        <Modal title={selectedItem.title} subtitle={`${selectedItem.kind === "manhwa" ? "Manhwa" : "Manga"} · ${selectedItem.year ?? "Année inconnue"} · catalogue local`} onClose={() => { setSelectedItem(null); setReaderOpen(false); setReaderChapterPages([]); setReaderChapterId(""); setReaderError(""); navigatePath("/explorer"); }} wide>
+        <Modal title={selectedItem.title} subtitle={`${selectedItem.kind === "manhwa" ? "Manhwa" : "Manga"} · ${selectedItem.year ?? "Année inconnue"} · MangaDex`} onClose={() => { setSelectedItem(null); setReaderOpen(false); setReaderChapterPages([]); setReaderChapterId(""); setReaderError(""); navigatePath("/explorer"); }} wide>
           <div className="detail-layout">
             <div className="detail-cover">
               {selectedItem.cover ? <img src={selectedItem.cover} alt={`Couverture de ${selectedItem.title}`} /> : <span className="cover-placeholder"><BookOpen size={32} /><span>KOVA</span></span>}
@@ -1651,21 +1651,21 @@ export default function App() {
               <div className="detail-facts"><span><small>Statut</small><strong>{selectedItem.status || "Non renseigné"}</strong></span><span><small>Langue</small><strong>{selectedItem.originalLanguage === "ko" ? "Coréen" : "Japonais"}</strong></span></div>
               <button className="primary-button full-button" onClick={() => void saveToLibrary(selectedItem)}>{savedIds.has(selectedItem.id) ? <Check size={17} /> : <Heart size={17} />}{savedIds.has(selectedItem.id) ? "Dans ma bibliothèque" : "Ajouter à ma bibliothèque"}</button>
               {chapterListLoading ? (
-                <LoadingState text="Recherche des chapitres dans catalogue local…" />
+                <LoadingState text="Recherche des chapitres sur MangaDex…" />
               ) : chapterListError ? (
                 <p className="reader-error">{chapterListError}</p>
               ) : (selectedItem.chapters?.length || chapterPageHasMore) ? (
                 <>
                   <button className="secondary-button full-button" onClick={() => setReaderOpen((open) => !open)}><BookOpen size={17} /> {readerOpen ? "Masquer les chapitres" : "Voir les chapitres"} <ArrowRight size={16} /></button>
-                  <p className="modal-footnote">Aucune page ni source de lecture externe n’est chargée en mode démonstration.</p>
+                  <p className="modal-footnote">Les pages sont fournies par MangaDex. Leur disponibilité dépend de l’API et des traductions publiées.</p>
                 </>
-              ) : <p className="modal-footnote">Aucun chapitre lisible n'a été trouvé pour ce titre dans catalogue local.</p>}
+              ) : <p className="modal-footnote">Aucun chapitre lisible n’a été trouvé pour ce titre sur MangaDex.</p>}
             </div>
           </div>
           {readerOpen && (selectedItem.chapters?.length || chapterPageHasMore) ? (
-            <section className="kova-reader" aria-label="Chapitres catalogue local">
+            <section className="kova-reader" aria-label="Chapitres MangaDex">
               <div className="mangadex-reader">
-                <div className="reader-chapter-heading"><span className="section-kicker">CHAPITRES DE DÉMONSTRATION</span><h3>Choisis un chapitre</h3><p>Cette fiche de démonstration ne contient pas de chapitre réel pendant cette phase.</p></div>
+                <div className="reader-chapter-heading"><span className="section-kicker">CHAPITRES MANGADEX</span><h3>Choisis un chapitre</h3><p>Les chapitres et les pages sont chargés depuis l’API MangaDex, selon les traductions disponibles.</p></div>
                 <div className="mangadex-chapter-list">
                   {(selectedItem.chapters ?? []).slice(0, chapterVisibleCount).map((chapter) => (
                     <div className="mangadex-chapter-row" key={chapter.mangaDexChapterId}>
