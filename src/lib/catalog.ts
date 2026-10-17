@@ -88,7 +88,7 @@ export async function fetchCatalog(
 }
 
 /** Chapter network access is disabled in UI-development mode. */
-export async function fetchMangaDexChapters(
+export async function fetchDemoChapters(
   _mangaId: string,
   offset = 0,
   signal?: AbortSignal,
@@ -98,7 +98,7 @@ export async function fetchMangaDexChapters(
 }
 
 /** No remote image host is called while external content APIs are disabled. */
-export async function fetchMangaDexChapterPages(
+export async function fetchDemoChapterPages(
   _chapterId: string,
   _quality: "data" | "data-saver" = "data-saver",
   signal?: AbortSignal,
