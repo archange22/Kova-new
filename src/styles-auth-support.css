@@ -70,3 +70,55 @@
 @media (max-width: 560px) {
   .auth-reset-link { min-height: 40px; }
 }
+
+
+/* Premium public profiles, included free for every KOVA member */
+.premium-profile { overflow: hidden; border: 1px solid rgba(184, 151, 255, .22); border-radius: 22px; background: linear-gradient(155deg, rgba(26,20,43,.98), rgba(12,12,22,.99)); box-shadow: 0 22px 70px rgba(0,0,0,.28); }
+.premium-profile-cover { position: relative; min-height: 170px; height: clamp(170px, 27vw, 250px); overflow: hidden; background: radial-gradient(ellipse at 18% 15%, rgba(186,123,255,.72), transparent 38%), radial-gradient(ellipse at 80% 90%, rgba(76,91,255,.5), transparent 40%), linear-gradient(120deg,#171127,#30204e 50%,#111b36); }
+.premium-profile-cover > img { width:100%; height:100%; display:block; object-fit:cover; }
+.premium-profile-cover-art { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; gap:14px; color:#fff; font-size:clamp(35px,8vw,70px); font-weight:950; letter-spacing:.24em; text-shadow:0 0 35px rgba(187,143,255,.75); }
+.premium-profile-cover-art svg { color:#d5b5ff; filter:drop-shadow(0 0 12px rgba(187,143,255,.8)); }
+.premium-profile-cover-shade { position:absolute; inset:0; background:linear-gradient(0deg,rgba(12,10,20,.78),transparent 65%); pointer-events:none; }
+.premium-profile-main { display:flex; align-items:center; gap:17px; padding:0 24px 18px; margin-top:-48px; position:relative; flex-wrap:wrap; }
+.premium-profile-avatar { width:100px; height:100px; flex-shrink:0; border-radius:28px; padding:4px; background:linear-gradient(140deg,#e7c8ff,#8e69ff,#5de5ed); box-shadow:0 9px 30px rgba(0,0,0,.42); }
+.premium-profile-avatar img,.premium-profile-editor-avatar img { width:100%;height:100%;object-fit:cover;border-radius:24px;display:block; }
+.premium-profile-avatar > span,.premium-profile-editor-avatar > span { width:100%;height:100%;display:grid;place-items:center;border-radius:24px;background:#211835;color:#f0ddff;font-size:38px;font-weight:850; }
+.premium-profile-identity { flex:1; min-width:140px; padding-top:40px; }
+.premium-profile-identity h3 { margin:5px 0 7px; font-size:clamp(21px,4vw,29px); letter-spacing:-.035em; color:#fff; overflow-wrap:anywhere; }
+.premium-profile-kicker { display:inline-flex;align-items:center;gap:5px;color:#d2b6ff;font-size:10px;font-weight:850;letter-spacing:.16em; }
+.premium-owner-badge { display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border:1px solid rgba(241,204,126,.4);border-radius:999px;background:linear-gradient(110deg,rgba(241,204,126,.18),rgba(181,133,255,.15));color:#ffdf9a;font-size:10px;font-weight:900;letter-spacing:.1em; }
+.premium-profile-body { padding:0 24px 24px; }
+.premium-profile-section { padding:19px 0; border-top:1px solid rgba(205,184,255,.12); }
+.premium-profile-section p { margin:9px 0 0;color:#d4cce3;line-height:1.7;overflow-wrap:anywhere; }
+.premium-profile-stats { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:8px 0 20px; }
+.premium-profile-stats > div { min-width:0;display:flex;flex-direction:column;gap:7px;padding:14px;border:1px solid rgba(205,184,255,.12);border-radius:15px;background:rgba(255,255,255,.025); }
+.premium-profile-stats svg { color:#c7a5ff; }
+.premium-profile-stats strong { color:#f5efff;font-size:12px; }
+.premium-profile-stats span { color:#9e92b4;font-size:11px; }
+.premium-profile-link { display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-top:17px;border-top:1px solid rgba(205,184,255,.12); }
+.premium-profile-link > span { color:#a99bbd;font-size:12px; }
+.premium-profile-link code { flex:1;min-width:120px;color:#d7c1ff;font-size:11px;overflow-wrap:anywhere; }
+.premium-profile-editor { gap:16px; }
+.editor-cover { min-height:140px;height:190px;border-radius:16px;border:1px solid rgba(184,151,255,.22); }
+.premium-cover-label { position:absolute;left:15px;bottom:13px;color:white;font-size:10px;font-weight:850;letter-spacing:.15em; }
+.premium-profile-editor-avatar { display:flex;align-items:center;gap:14px;margin-top:-5px; }
+.premium-profile-editor-avatar > img,.premium-profile-editor-avatar > span { width:64px;height:64px;flex-shrink:0;border:3px solid #29203c;border-radius:20px; }
+.premium-profile-editor-avatar > span { font-size:25px; }
+.premium-profile-editor-avatar > div { display:flex;flex-direction:column;gap:5px; }
+.premium-profile-editor-avatar strong { color:#fff;font-size:16px; }
+.premium-profile-editor-avatar small { color:#aa9dbd;font-size:12px; }
+.premium-profile-fields { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px; }
+.premium-profile-fields label { min-width:0; }
+.premium-profile-editor input[type="file"] { width:100%;padding:10px 6px;font-size:12px; }
+@media(max-width:560px) {
+ .premium-profile-cover { height:170px; }
+ .premium-profile-main { padding:0 15px 15px;gap:12px;margin-top:-38px; }
+ .premium-profile-avatar { width:78px;height:78px;border-radius:23px; }
+ .premium-profile-avatar img,.premium-profile-avatar > span { border-radius:19px; }
+ .premium-profile-identity { padding-top:31px; }
+ .premium-profile-body { padding:0 15px 17px; }
+ .premium-profile-stats { grid-template-columns:1fr; }
+ .premium-profile-stats > div { display:grid;grid-template-columns:24px 1fr;align-items:center; }
+ .premium-profile-stats span { grid-column:2; }
+ .premium-profile-fields { grid-template-columns:1fr; }
+}
