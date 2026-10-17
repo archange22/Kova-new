@@ -1,7 +1,7 @@
 name = "kova"
 compatibility_date = "2026-10-16"
 
-# Worker proxies MangaDex API and image requests; Vite assets remain static.
+# Serves the static KOVA interface; external content API proxies are disabled.
 main = "src/worker.ts"
 
 [assets]
