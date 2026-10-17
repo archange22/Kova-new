@@ -670,7 +670,7 @@ export default function App() {
     if (!user) return;
     const normalizeImage = (value: string) => {
       if (!value.trim()) return "";
-      if (/^data:image\\/(jpeg|png|webp);base64,/i.test(value)) return value;
+      if (/^data:image\/(jpeg|png|webp);base64,/i.test(value)) return value;
       return validHttpUrl(value);
     };
     const photoURL = normalizeImage(profileDraft.photoURL);
