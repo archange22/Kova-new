@@ -9,8 +9,8 @@ const ANILIST_ORIGIN = "https://graphql.anilist.co";
 function corsHeaders(origin: string) {
   return {
     "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Accept",
+    "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Accept, Authorization",
     "Vary": "Origin",
   };
 }
@@ -38,12 +38,24 @@ export default {
         if (typeof parsed.query !== "string" || parsed.query.length > 28000) {
           return new Response("Invalid GraphQL query", { status: 400 });
         }
+        const headersToUpstream = new Headers({
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        });
+        const authorization = request.headers.get("Authorization");
+        if (authorization && /^Bearer [A-Za-z0-9._~-]+$/.test(authorization)) {
+          headersToUpstream.set("Authorization", authorization);
+        }
         const response = await fetch(ANILIST_ORIGIN, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          headers: headersToUpstream,
           body,
         });
-        const headers = new Headers({ "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=300", ...cors });
+        const headers = new Headers({
+          "Content-Type": "application/json; charset=utf-8",
+          "Cache-Control": authorization ? "no-store" : "public, max-age=300",
+          ...cors,
+        });
         return new Response(response.body, { status: response.status, headers });
       } catch {
         return new Response(JSON.stringify({ errors: [{ message: "AniList est momentanément indisponible." }] }), { status: 502, headers: { "Content-Type": "application/json; charset=utf-8", ...cors } });
