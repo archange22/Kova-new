@@ -251,8 +251,9 @@ export default function App() {
       setCatalogError("");
       try {
         const page: CatalogPage = await fetchCatalog(selectedKind, query, 0, controller.signal);
+        const enrichedItems = await enrichWithAniList(page.items, controller.signal);
         if (!alive) return;
-        setItems(page.items);
+        setItems(enrichedItems);
         setOffset(page.nextOffset);
         setHasMore(page.hasMore);
       } catch (error) {
@@ -495,6 +496,7 @@ export default function App() {
     setLoadingMore(true);
     try {
       const page = await fetchCatalog(selectedKind, query, offset);
+      const enrichedItems = await enrichWithAniList(page.items);
       setItems((current) => {
         const ids = new Set(current.map((item) => item.id));
         return [...current, ...enrichedItems.filter((item) => !ids.has(item.id))];
