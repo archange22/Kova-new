@@ -64,3 +64,60 @@ export async function enrichWithAniList(items: CatalogItem[], signal?: AbortSign
     return items;
   }
 }
+
+
+export type AniListUserEntry = {
+  mediaId: number;
+  status: "CURRENT" | "COMPLETED" | "PAUSED" | "DROPPED" | "PLANNING" | "REPEATING";
+  progress: number;
+  media: {
+    id: number;
+    siteUrl?: string;
+    title?: { romaji?: string | null; english?: string | null; native?: string | null };
+  };
+};
+
+async function userGraphQL<T>(token: string, query: string): Promise<T> {
+  const response = await fetch("/api/anilist", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Authorization: "Bearer " + token,
+    },
+    body: JSON.stringify({ query }),
+  });
+  const payload = await response.json() as { data?: T; errors?: Array<{ message?: string }> };
+  if (!response.ok || payload.errors?.length || !payload.data) {
+    throw new Error(payload.errors?.[0]?.message || "AniList n'a pas répondu correctement.");
+  }
+  return payload.data;
+}
+
+export async function fetchAniListUserEntries(token: string): Promise<{ name: string; entries: AniListUserEntry[] }> {
+  const viewer = await userGraphQL<{ Viewer: { id: number; name: string } }>(
+    token,
+    "query { Viewer { id name } }"
+  );
+  const result = await userGraphQL<{
+    MediaListCollection: { lists: Array<{ entries: AniListUserEntry[] }> };
+  }>(
+    token,
+    "query { MediaListCollection(userId: " + viewer.Viewer.id + ", type: MANGA) { lists { entries { mediaId status progress media { id siteUrl title { romaji english native } } } } } }"
+  );
+  return {
+    name: viewer.Viewer.name,
+    entries: result.MediaListCollection.lists.flatMap((list) => list.entries),
+  };
+}
+
+export async function saveAniListEntryStatus(
+  token: string,
+  mediaId: number,
+  status: "CURRENT" | "COMPLETED" | "PAUSED" | "DROPPED" | "PLANNING",
+): Promise<void> {
+  await userGraphQL<{ SaveMediaListEntry: { id: number } }>(
+    token,
+    "mutation { SaveMediaListEntry(mediaId: " + mediaId + ", status: " + status + ") { id } }"
+  );
+}
