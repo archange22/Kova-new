@@ -26,29 +26,44 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // Members can read their own private account. The owner can inspect accounts
-      // to manage roles from the Firebase console.
-      allow read: if ownsUser(userId) || isOwner();
+      // Private account document: only its owner and the site owner can read it.
+      allow get: if ownsUser(userId) || isOwner();
+      allow list: if isOwner();
 
-      // New accounts are created by the app with the authenticated UID.
-      // Only the owner may create a privileged role.
+      // The app creates the account document automatically after authentication.
+      // A member may only create a normal account for their own Auth UID.
       allow create: if ownsUser(userId)
         && request.resource.data.uid == userId
-        && (
-          !request.resource.data.keys().hasAny(['role'])
-          || request.resource.data.role == 'user'
-          || (isOwner() && request.resource.data.role == 'owner')
-        );
+        && request.resource.data.role == 'user'
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.username is string
+        && request.resource.data.username.size() <= 30
+        && request.resource.data.bio is string
+        && request.resource.data.bio.size() <= 180
+        && request.resource.data.photoURL is string
+        && request.resource.data.photoURL.size() <= 320000
+        && request.resource.data.bannerURL is string
+        && request.resource.data.bannerURL.size() <= 320000;
 
-      // Users may update their own profile but cannot promote themselves.
+      // Members may update profile fields, but never change their own role or UID.
+      // Legacy documents without uid can be repaired by their authenticated owner.
       allow update: if (
         ownsUser(userId)
         && request.resource.data.uid == userId
+        && request.resource.data.email == request.auth.token.email
         && request.resource.data.createdAt == resource.data.createdAt
-        && (
-          !request.resource.data.keys().hasAny(['role'])
-          || request.resource.data.role == resource.data.role
-        )
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'uid', 'username', 'bio', 'photoURL', 'bannerURL', 'email', 'updatedAt'
+        ])
+        && request.resource.data.username is string
+        && request.resource.data.username.size() <= 30
+        && request.resource.data.bio is string
+        && request.resource.data.bio.size() <= 180
+        && request.resource.data.photoURL is string
+        && request.resource.data.photoURL.size() <= 320000
+        && request.resource.data.bannerURL is string
+        && request.resource.data.bannerURL.size() <= 320000
       ) || (
         isOwner()
         && request.resource.data.uid == resource.data.uid
@@ -57,7 +72,7 @@ service cloud.firestore {
         && request.resource.data.role in ['user', 'admin', 'owner']
       );
 
-      // Account deletion is self-service only; role management remains owner-only.
+      // Self-service account deletion. Admin/owner promotion remains owner-only.
       allow delete: if ownsUser(userId);
 
       match /library/{itemId} {
