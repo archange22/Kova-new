@@ -210,3 +210,27 @@
  .legal-document { max-height:47dvh;padding:15px; }
  .legal-document h3 { font-size:21px; }
 }
+
+
+/* KOVA community layer: follow controls and member stats, desktop + mobile. */
+.community-profile-stats > div { min-width:0; }
+.community-profile-stats > div strong { font-size:clamp(18px,2vw,25px);letter-spacing:-.04em; }
+.profile-follow-button { display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:112px;min-height:42px;padding:0 15px;white-space:nowrap; }
+.profile-follow-button:disabled { opacity:.65;cursor:wait; }
+.profile-follow-button.is-following { border-color:rgba(141,228,193,.25);background:rgba(45,212,150,.08);color:#a6f0d2; }
+.profile-follow-button.is-following:hover { border-color:rgba(141,228,193,.45);background:rgba(45,212,150,.13); }
+.premium-profile-main { flex-wrap:wrap; }
+.premium-profile-identity { flex:1;min-width:120px; }
+.premium-profile-link { display:flex;align-items:center;flex-wrap:wrap;gap:9px; }
+.premium-profile-link code { min-width:0;max-width:100%;overflow-wrap:anywhere; }
+@media(max-width:560px) {
+ .premium-profile-main { align-items:center;gap:12px; }
+ .premium-profile-main > .profile-follow-button,.premium-profile-main > .secondary-button { flex-basis:100%;width:100%; }
+ .community-profile-stats { grid-template-columns:repeat(3,minmax(0,1fr));gap:8px; }
+ .community-profile-stats > div { padding:12px 7px; }
+ .community-profile-stats > div strong { font-size:18px; }
+ .community-profile-stats > div span { font-size:10px; }
+ .premium-profile-link { align-items:stretch; }
+ .premium-profile-link code { flex-basis:100%; }
+ .premium-profile-link button { width:100%; }
+}
