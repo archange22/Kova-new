@@ -65,7 +65,7 @@ type Profile = {
   photoURL?: string;
   bannerURL?: string;
   email?: string;
-  role?: "user" | "admin";
+  role?: "user" | "admin" | "owner";
 };
 
 type LibraryStatus = "to_read" | "reading" | "completed" | "paused" | "dropped";
@@ -94,18 +94,14 @@ type SupportTicket = {
   updatedAt?: { toMillis?: () => number };
 };
 
-const SUPPORT_ADMIN_UIDS = new Set([
-  "fL5Gz1lTOUY11JRu14KHKcDD95q1",
-  "TIat7e3WQyXIk9HyLdjPxsfZ6R92",
-  "B23E8GVKHIUnzgdK5YScoiZzsnG3",
-]);
+const OWNER_UID = "fL5Gz1lTOUY11JRu14KHKcDD95q1";
 
-function isSupportAdmin(uid?: string | null) {
-  return Boolean(uid && SUPPORT_ADMIN_UIDS.has(uid));
+function isSupportAdmin(uid?: string | null, role?: Profile["role"]) {
+  return Boolean(uid && (uid === OWNER_UID || role === "owner" || role === "admin"));
 }
 
-function getRoleForUid(uid: string): "user" | "admin" {
-  return uid === "fL5Gz1lTOUY11JRu14KHKcDD95q1" ? "admin" : "user";
+function getRoleForUid(uid: string): "user" | "owner" {
+  return uid === OWNER_UID ? "owner" : "user";
 }
 
 function timestampMillis(value?: { toMillis?: () => number } | null) {
@@ -382,6 +378,8 @@ export default function App() {
         let loadedProfile: Profile;
         if (snapshot.exists()) {
           loadedProfile = snapshot.data() as Profile;
+          // The owner identity comes from Firebase Authentication, never from an editable role field.
+          if (currentUser.uid === OWNER_UID) loadedProfile.role = "owner";
         } else {
           loadedProfile = {
             username: currentUser.displayName || currentUser.email?.split("@")[0] || "Lecteur",
@@ -944,7 +942,7 @@ export default function App() {
     setSupportError("");
     try {
       const ticketCollection = collection(db, "supportTickets");
-      const snapshot = isSupportAdmin(user.uid)
+      const snapshot = isSupportAdmin(user.uid, profile.role)
         ? await getDocs(ticketCollection)
         : await getDocs(firestoreQuery(ticketCollection, where("uid", "==", user.uid)));
       const tickets = snapshot.docs
