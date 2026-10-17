@@ -318,6 +318,8 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [publicProfile, setPublicProfile] = useState<(Profile & { uid: string }) | null>(null);
+  const [publicProfileLoading, setPublicProfileLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const [supportLoading, setSupportLoading] = useState(false);
@@ -1031,6 +1033,22 @@ export default function App() {
       }
       return;
     }
+    if (path.startsWith("/profil/")) {
+      const profileUid = decodeURIComponent(path.slice("/profil/".length));
+      setScreen("home");
+      setAuthOpen(false);
+      setSupportOpen(false);
+      if (profileUid) {
+        setPublicProfileLoading(true);
+        void getDoc(doc(db, "users", profileUid)).then((snapshot) => {
+          if (snapshot.exists()) setPublicProfile({ uid: profileUid, ...(snapshot.data() as Profile) });
+          else setPublicProfile({ uid: profileUid, username: "Lecteur KOVA", bio: "", photoURL: "", bannerURL: "" });
+        }).catch((error) => { setNotice(friendlyError(error)); setPublicProfile(null); })
+          .finally(() => setPublicProfileLoading(false));
+      }
+      appliedRouteRef.current = path;
+      return;
+    }
     if (path === "/support") {
       setScreen("home");
       if (!user) {
@@ -1342,30 +1360,54 @@ export default function App() {
         </Modal>
       )}
 
+      {publicProfile && routePath.startsWith("/profil/") && (
+        <Modal title="Profil KOVA" subtitle="Un espace personnel, unique à chaque lecteur." onClose={() => { setPublicProfile(null); navigatePath("/", true); }} wide>
+          {publicProfileLoading ? <LoadingState text="Chargement du profil…" /> : (
+            <section className="premium-profile">
+              <div className="premium-profile-cover">
+                {publicProfile.bannerURL ? <img src={publicProfile.bannerURL} alt="Bannière du profil" /> : <div className="premium-profile-cover-art"><span>KOVA</span><Sparkles size={30} /></div>}
+                <div className="premium-profile-cover-shade" />
+              </div>
+              <div className="premium-profile-main">
+                <div className="premium-profile-avatar">{publicProfile.photoURL ? <img src={publicProfile.photoURL} alt="" /> : <span>{(publicProfile.username || "K").slice(0, 1).toUpperCase()}</span>}</div>
+                <div className="premium-profile-identity"><span className="premium-profile-kicker"><Sparkles size={13} /> KOVA MEMBER</span><h3>{publicProfile.username || "Lecteur KOVA"}</h3>
+                  {publicProfile.uid === "fL5Gz1lTOUY11JRu14KHKcDD95q1" && <span className="premium-owner-badge"><ShieldCheck size={13} /> OWNER</span>}
+                </div>
+                {user?.uid === publicProfile.uid && <button className="secondary-button" onClick={() => { setPublicProfile(null); openProfile(); }}>Modifier le profil</button>}
+              </div>
+              <div className="premium-profile-body">
+                <div className="premium-profile-section"><span className="section-kicker">À PROPOS</span><p>{publicProfile.bio?.trim() || "Ce lecteur préfère laisser son profil mystérieux."}</p></div>
+                <div className="premium-profile-stats"><div><Sparkles size={17} /><strong>Membre KOVA</strong><span>Passion manga</span></div><div><BookOpen size={17} /><strong>Bibliothèque</strong><span>Lectures personnelles</span></div><div><ShieldCheck size={17} /><strong>Profil public</strong><span>Personnalisé</span></div></div>
+                <div className="premium-profile-link"><span>URL du profil</span><code>{window.location.origin}/profil/{publicProfile.uid}</code><button className="small-outline" onClick={() => { void navigator.clipboard?.writeText(window.location.origin + "/profil/" + publicProfile.uid); setNotice("Lien du profil copié."); }}>Copier le lien</button></div>
+              </div>
+            </section>
+          )}
+        </Modal>
+      )}
       {profileOpen && user && (
-        <Modal title="Mon profil KOVA" subtitle="Choisis une image sur ton téléphone ou colle une URL. Les fichiers sont compressés avant l’enregistrement." onClose={() => setProfileOpen(false)}>
-          <form className="form-stack" onSubmit={saveProfile}>
-            <label>Pseudonyme<input value={profileDraft.username} onChange={(event) => setProfileDraft((draft) => ({ ...draft, username: event.target.value }))} maxLength={30} placeholder="Ton pseudo" /></label>
-            <label>À propos<textarea value={profileDraft.bio} onChange={(event) => setProfileDraft((draft) => ({ ...draft, bio: event.target.value }))} maxLength={180} rows={3} placeholder="Quelques mots sur tes lectures…" /></label>
-            <label>Photo de profil
-              <input type="file" accept="image/*" onChange={(event) => void handleImageFile("photoURL", event.target.files?.[0])} />
-              <input value={profileDraft.photoURL.startsWith("data:") ? "Image sélectionnée depuis l’appareil" : profileDraft.photoURL} onChange={(event) => setProfileDraft((draft) => ({ ...draft, photoURL: event.target.value }))} type="url" placeholder="Ou colle une URL https://…" />
-            </label>
-            <label>Bannière du profil
-              <input type="file" accept="image/*" onChange={(event) => void handleImageFile("bannerURL", event.target.files?.[0])} />
-              <input value={profileDraft.bannerURL.startsWith("data:") ? "Image sélectionnée depuis l’appareil" : profileDraft.bannerURL} onChange={(event) => setProfileDraft((draft) => ({ ...draft, bannerURL: event.target.value }))} type="url" placeholder="Ou colle une URL https://…" />
-            </label>
-            <div className="profile-preview">
-              {profileDraft.bannerURL && <img className="banner-preview" src={profileDraft.bannerURL} alt="Aperçu de la bannière" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
-              <div className="profile-preview-row">{profileDraft.photoURL ? <img className="avatar avatar-large" src={profileDraft.photoURL} alt="" onError={(event) => { event.currentTarget.style.display = "none"; }} /> : <span className="avatar avatar-large">{(profileDraft.username || displayName).slice(0, 1).toUpperCase()}</span>}<span><strong>{profileDraft.username || displayName}</strong><small>{user.email}</small></span></div>
+        <Modal title="Personnaliser mon profil" subtitle="Un profil premium, gratuit, avec ta bannière, ton avatar et ta signature." onClose={() => setProfileOpen(false)} wide>
+          <form className="form-stack premium-profile-editor" onSubmit={saveProfile}>
+            <div className="premium-profile-cover editor-cover">
+              {profileDraft.bannerURL ? <img src={profileDraft.bannerURL} alt="Aperçu de la bannière" /> : <div className="premium-profile-cover-art"><span>KOVA</span><Sparkles size={30} /></div>}
+              <div className="premium-profile-cover-shade" /><span className="premium-cover-label">BANNIÈRE DE PROFIL</span>
             </div>
-            <p className="modal-footnote">Images compressées en JPEG, environ 180 Ko maximum chacune. Évite les images privées.</p>
-            <button className="primary-button full-button" type="submit" disabled={profileBusy}>{profileBusy ? "Enregistrement…" : "Enregistrer le profil"} <Check size={17} /></button>
+            <div className="premium-profile-editor-avatar">
+              {profileDraft.photoURL ? <img src={profileDraft.photoURL} alt="Aperçu de la photo" /> : <span>{(profileDraft.username || displayName).slice(0, 1).toUpperCase()}</span>}
+              <div><strong>{profileDraft.username || displayName}</strong><small>Profil KOVA · gratuit pour tous</small></div>
+            </div>
+            <label>Pseudonyme<input value={profileDraft.username} onChange={(event) => setProfileDraft((draft) => ({ ...draft, username: event.target.value }))} maxLength={30} placeholder="Ton pseudo" /></label>
+            <label>À propos<textarea value={profileDraft.bio} onChange={(event) => setProfileDraft((draft) => ({ ...draft, bio: event.target.value }))} maxLength={180} rows={3} placeholder="Présente-toi en quelques mots…" /></label>
+            <div className="premium-profile-fields">
+              <label>Photo de profil<input type="file" accept="image/*" onChange={(event) => void handleImageFile("photoURL", event.target.files?.[0])} /><input value={profileDraft.photoURL.startsWith("data:") ? "Image sélectionnée" : profileDraft.photoURL} onChange={(event) => setProfileDraft((draft) => ({ ...draft, photoURL: event.target.value }))} type="url" placeholder="Ou URL https://…" /></label>
+              <label>Bannière<input type="file" accept="image/*" onChange={(event) => void handleImageFile("bannerURL", event.target.files?.[0])} /><input value={profileDraft.bannerURL.startsWith("data:") ? "Image sélectionnée" : profileDraft.bannerURL} onChange={(event) => setProfileDraft((draft) => ({ ...draft, bannerURL: event.target.value }))} type="url" placeholder="Ou URL https://…" /></label>
+            </div>
+            <p className="modal-footnote">Les images sont compressées avant leur sauvegarde. Chaque image reste légère pour Firestore.</p>
+            <button className="primary-button full-button" type="submit" disabled={profileBusy}>{profileBusy ? "Enregistrement…" : "Enregistrer mon profil"} <Check size={17} /></button>
+            <button className="secondary-button full-button" type="button" onClick={() => { setProfileOpen(false); navigatePath("/profil/" + user.uid); }}>Voir mon profil public <ArrowRight size={16} /></button>
           </form>
           <button className="logout-row" onClick={() => void handleSignOut()}><LogOut size={17} /> Se déconnecter</button>
         </Modal>
       )}
-
       {supportOpen && user && (
         <Modal title={isSupportAdmin(user.uid) ? "Centre de support KOVA" : "Support & tickets"} subtitle={isSupportAdmin(user.uid) ? "Lis les demandes, réponds aux lecteurs et mets à jour leur statut." : "Une question ou un problème ? Crée un ticket et garde toutes les réponses au même endroit."} onClose={() => { setSupportOpen(false); setSupportTicketId(""); setSupportMessages([]); navigatePath("/", true); }} wide>
           <div className="support-intro">
