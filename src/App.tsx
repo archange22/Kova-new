@@ -187,6 +187,10 @@ export default function App() {
   const [readerQuality, setReaderQuality] = useState<"data" | "data-saver">("data-saver");
   const [chapterListLoading, setChapterListLoading] = useState(false);
   const [chapterListError, setChapterListError] = useState("");
+  const [chapterPageOffset, setChapterPageOffset] = useState(0);
+  const [chapterPageHasMore, setChapterPageHasMore] = useState(false);
+  const [chapterPageLoading, setChapterPageLoading] = useState(false);
+  const [chapterVisibleCount, setChapterVisibleCount] = useState(30);
   const [menuOpen, setMenuOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -562,6 +566,10 @@ export default function App() {
     setReaderOpen(false);
     setChapterListError("");
     setChapterListLoading(!item.chapters?.length);
+    setChapterPageOffset(0);
+    setChapterPageHasMore(false);
+    setChapterPageLoading(false);
+    setChapterVisibleCount(30);
     setReaderError("");
     setReaderChapterPages([]);
     setReaderChapterId("");
@@ -573,10 +581,12 @@ export default function App() {
     }
 
     try {
-      const chapters = await fetchMangaDexChapters(item.id);
+      const page = await fetchMangaDexChapters(item.id);
       if (requestId !== chapterListRequestId.current) return;
-      setSelectedItem((current) => current?.id === item.id ? { ...current, chapters } : current);
-      if (chapters.length === 0) {
+      setSelectedItem((current) => current?.id === item.id ? { ...current, chapters: page.chapters } : current);
+      setChapterPageOffset(page.nextOffset);
+      setChapterPageHasMore(page.hasMore);
+      if (page.chapters.length === 0 && !page.hasMore) {
         setChapterListError("Aucun chapitre lisible en français ou en anglais n'est disponible dans MangaDex pour ce titre.");
       }
     } catch (error) {
@@ -584,6 +594,43 @@ export default function App() {
       setChapterListError(error instanceof Error ? error.message : "Impossible de récupérer les chapitres MangaDex.");
     } finally {
       if (requestId === chapterListRequestId.current) setChapterListLoading(false);
+    }
+  }
+
+  async function loadMoreChapters() {
+    if (!selectedItem || chapterPageLoading || !chapterPageHasMore) return;
+    const item = selectedItem;
+    const requestId = ++chapterListRequestId.current;
+    const existing = item.chapters ?? [];
+    const existingKeys = new Set(existing.map((chapter) => {
+      const number = chapter.title.match(/^Chapitre ([^ ·]+)/)?.[1];
+      return (chapter.volume ?? "") + ":" + (number ?? chapter.mangaDexChapterId);
+    }));
+    setChapterPageLoading(true);
+    setChapterListError("");
+    try {
+      const page = await fetchMangaDexChapters(item.id, chapterPageOffset);
+      if (requestId !== chapterListRequestId.current) return;
+      const additions = page.chapters.filter((chapter) => {
+        const number = chapter.title.match(/^Chapitre ([^ ·]+)/)?.[1];
+        const key = (chapter.volume ?? "") + ":" + (number ?? chapter.mangaDexChapterId);
+        if (existingKeys.has(key)) return false;
+        existingKeys.add(key);
+        return true;
+      });
+      const merged = [...existing, ...additions];
+      setSelectedItem((current) => current?.id === item.id ? { ...current, chapters: merged } : current);
+      setChapterPageOffset(page.nextOffset);
+      setChapterPageHasMore(page.hasMore);
+      setChapterVisibleCount((current) => Math.min(merged.length, current + 30));
+      if (merged.length === 0 && !page.hasMore) {
+        setChapterListError("Aucun chapitre lisible en français ou en anglais n'est disponible dans MangaDex pour ce titre.");
+      }
+    } catch (error) {
+      if (requestId !== chapterListRequestId.current) return;
+      setChapterListError(error instanceof Error ? error.message : "Impossible de charger les chapitres suivants.");
+    } finally {
+      if (requestId === chapterListRequestId.current) setChapterPageLoading(false);
     }
   }
 
@@ -943,7 +990,7 @@ export default function App() {
                 <LoadingState text="Recherche des chapitres dans MangaDex…" />
               ) : chapterListError ? (
                 <p className="reader-error">{chapterListError}</p>
-              ) : selectedItem.chapters?.length ? (
+              ) : (selectedItem.chapters?.length || chapterPageHasMore) ? (
                 <>
                   <button className="secondary-button full-button" onClick={() => setReaderOpen((open) => !open)}><BookOpen size={17} /> {readerOpen ? "Masquer les chapitres" : "Voir les chapitres"} <ArrowRight size={16} /></button>
                   <p className="modal-footnote">Les pages sont chargées depuis MangaDex. Les groupes de traduction sont crédités dans chaque chapitre.</p>
@@ -951,12 +998,12 @@ export default function App() {
               ) : <p className="modal-footnote">Aucun chapitre lisible n'a été trouvé pour ce titre dans MangaDex.</p>}
             </div>
           </div>
-          {readerOpen && selectedItem.chapters?.length ? (
+          {readerOpen && (selectedItem.chapters?.length || chapterPageHasMore) ? (
             <section className="kova-reader" aria-label="Chapitres MangaDex">
               <div className="mangadex-reader">
                 <div className="reader-chapter-heading"><span className="section-kicker">CHAPITRES MANGADEX</span><h3>Choisis un chapitre</h3><p>Les chapitres français et anglais disponibles peuvent être lus dans une page dédiée.</p></div>
                 <div className="mangadex-chapter-list">
-                  {selectedItem.chapters.map((chapter) => (
+                  {(selectedItem.chapters ?? []).slice(0, chapterVisibleCount).map((chapter) => (
                     <div className="mangadex-chapter-row" key={chapter.mangaDexChapterId}>
                       <span>{chapter.title}{chapter.scanlationGroup && <small className="chapter-attribution">Traduction : {chapter.scanlationGroup}</small>}</span>
                       <button className="secondary-button" onClick={() => void openMangaDexChapter(chapter.mangaDexChapterId, chapter.title)} disabled={readerLoading && readerChapterId === chapter.mangaDexChapterId}>
@@ -965,6 +1012,18 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+                <p className="modal-footnote" aria-live="polite">
+                  {Math.min(chapterVisibleCount, selectedItem.chapters?.length ?? 0)} chapitre(s) affiché(s) sur {selectedItem.chapters?.length ?? 0} chargé(s).
+                </p>
+                {(chapterVisibleCount < (selectedItem.chapters?.length ?? 0)) ? (
+                  <button className="secondary-button full-button" onClick={() => setChapterVisibleCount((current) => current + 30)}>
+                    Afficher 30 chapitres de plus
+                  </button>
+                ) : chapterPageHasMore ? (
+                  <button className="secondary-button full-button" onClick={() => void loadMoreChapters()} disabled={chapterPageLoading}>
+                    {chapterPageLoading ? "Chargement des chapitres…" : "Charger les chapitres suivants"}
+                  </button>
+                ) : null}
               </div>
             </section>
           ) : null}
