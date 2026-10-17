@@ -88,6 +88,18 @@ function getLibraryDocId(item: CatalogItem) {
   return item.id.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 140);
 }
 
+function removeUndefinedDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(removeUndefinedDeep);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, nested]) => nested !== undefined)
+        .map(([key, nested]) => [key, removeUndefinedDeep(nested)]),
+    );
+  }
+  return value;
+}
+
 function validHttpUrl(value: string) {
   if (!value.trim()) return "";
   try {
@@ -147,6 +159,7 @@ function MediaCard({
 }
 
 export default function App() {
+  const catalogRequestId = useRef(0);
   const chapterListRequestId = useRef(0);
   const readerPagesRequestId = useRef(0);
   const [user, setUser] = useState<User | null>(null);
@@ -280,8 +293,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    catalogRequestId.current += 1;
     const controller = new AbortController();
     let alive = true;
+    setLoadingMore(false);
     const timeout = window.setTimeout(async () => {
       setCatalogLoading(true);
       setCatalogError("");
@@ -455,7 +470,7 @@ export default function App() {
     const status = existing?.libraryStatus ?? "to_read";
     const saved: LibraryEntry = { ...item, libraryStatus: status };
     try {
-      const safeEntry = Object.fromEntries(Object.entries(saved).filter(([, value]) => value !== undefined));
+      const safeEntry = removeUndefinedDeep(saved) as Record<string, unknown>;
       await setDoc(doc(db, "users", user.uid, "library", docId), {
         ...safeEntry,
         updatedAt: serverTimestamp(),
@@ -616,10 +631,12 @@ export default function App() {
 
   async function loadMore() {
     if (loadingMore || !hasMore) return;
+    const requestId = catalogRequestId.current;
     setLoadingMore(true);
     try {
       const page = await fetchCatalog(selectedKind, query, offset);
       const enrichedItems = await enrichWithAniList(page.items);
+      if (requestId !== catalogRequestId.current) return;
       setItems((current) => {
         const ids = new Set(current.map((item) => item.id));
         return [...current, ...enrichedItems.filter((item) => !ids.has(item.id))];
@@ -627,9 +644,10 @@ export default function App() {
       setOffset(page.nextOffset);
       setHasMore(page.hasMore);
     } catch (error) {
+      if (requestId !== catalogRequestId.current) return;
       setCatalogError(error instanceof Error ? error.message : "Impossible de charger la suite.");
     } finally {
-      setLoadingMore(false);
+      if (requestId === catalogRequestId.current) setLoadingMore(false);
     }
   }
 
