@@ -319,7 +319,7 @@ function MediaCard({
         <span className="media-card-copy">
           <strong className="media-title">{item.title}</strong>
           <span className="media-meta">{item.year ?? "Année inconnue"}{item.status ? ` · ${item.status === "finished" ? "Terminé" : item.status === "current" ? "En cours" : item.status}` : ""}</span>
-          <span className="media-source">{item.anilistId ? "Catalogue de démonstration" : "Catalogue local"}</span>
+          <span className="media-source">{item.provider === "mangadex" ? "MangaDex · API officielle" : "Catalogue local"}</span>
         </span>
       </button>
       <button
