@@ -1393,7 +1393,7 @@ export default function App() {
         </Modal>
       )}
 
-      {selectedItem && screen !== "reader" && (
+      {selectedItem && screen !== "reader" && !supportOpen && (
         <Modal title={selectedItem.title} subtitle={`${selectedItem.kind === "manhwa" ? "Manhwa" : "Manga"} · ${selectedItem.year ?? "Année inconnue"} · MangaDex`} onClose={() => { setSelectedItem(null); setReaderOpen(false); setReaderChapterPages([]); setReaderChapterId(""); setReaderError(""); navigatePath("/explorer"); }} wide>
           <div className="detail-layout">
             <div className="detail-cover">
