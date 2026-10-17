@@ -883,8 +883,8 @@ export default function App() {
       const ticketRef = doc(collection(db, "supportTickets"));
       await setDoc(ticketRef, {
         uid: user.uid,
-        username: displayName,
-        email: user.email || "",
+        username: displayName.slice(0, 60),
+        email: (user.email || "").slice(0, 254),
         subject: subject.slice(0, 120),
         category: supportCategory,
         status: "open",
@@ -929,7 +929,7 @@ export default function App() {
       const messageRef = doc(collection(db, "supportTickets", supportTicketId, "messages"));
       await setDoc(messageRef, {
         authorUid: user.uid,
-        authorName: isSupportAdmin(user.uid) ? "Support KOVA" : displayName,
+        authorName: isSupportAdmin(user.uid) ? "Support KOVA" : displayName.slice(0, 60),
         authorRole: isSupportAdmin(user.uid) ? "support" : "user",
         body: body.slice(0, 4000),
         createdAt: serverTimestamp(),
@@ -1004,11 +1004,13 @@ export default function App() {
     if (path === "/") {
       appliedRouteRef.current = path;
       setAuthOpen(false);
+      setSupportOpen(false);
       return;
     }
     if (path === "/bibliotheque" || path === "/explorer") {
       setScreen(path === "/bibliotheque" ? "library" : "explore");
       setAuthOpen(false);
+      setSupportOpen(false);
       appliedRouteRef.current = path;
       return;
     }
@@ -1313,7 +1315,7 @@ export default function App() {
               {supportLoading ? <div className="support-list-empty">Chargement des tickets…</div> : supportTickets.length === 0 ? <div className="support-list-empty">Aucun ticket pour l’instant.<br />Besoin d’aide ? Crée la première demande.</div> : (
                 <div className="support-ticket-list">
                   {supportTickets.map((ticket) => (
-                    <button key={ticket.id} className={supportTicketId === ticket.id ? "support-ticket-item selected" : "support-ticket-item"} onClick={() => { setSupportTicketId(ticket.id); setSupportError(""); void loadSupportMessages(ticket.id); }}>
+                    <button key={ticket.id} className={supportTicketId === ticket.id ? "support-ticket-item selected" : "support-ticket-item"} onClick={() => { setSupportTicketId(ticket.id); setSupportMessages([]); setSupportError(""); void loadSupportMessages(ticket.id); }}>
                       <span className="support-ticket-topline"><strong>{ticket.subject}</strong><span className={"support-status status-" + ticket.status}>{supportStatusLabel(ticket.status)}</span></span>
                       <span className="support-ticket-preview">{ticket.lastMessagePreview || "Pas encore de message"}</span>
                       <span className="support-ticket-meta">{isSupportAdmin(user.uid) ? ticket.username || ticket.email : supportCategoryLabel(ticket.category)} · {new Date(timestampMillis(ticket.updatedAt) || timestampMillis(ticket.createdAt) || Date.now()).toLocaleDateString("fr-FR")}</span>
