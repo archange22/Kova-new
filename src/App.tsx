@@ -39,7 +39,7 @@ import {
 import { auth, db } from "./lib/firebase";
 import { fetchCatalog, fetchMangaDexChapters, fetchMangaDexChapterPages } from "./lib/catalog";
 import { enrichWithAniList, fetchAniListUserEntries, saveAniListEntryStatus } from "./lib/anilist";
-import type { CatalogItem, CatalogKind, CatalogPage } from "./lib/catalog";
+import type { CatalogItem, CatalogKind, CatalogPage, ReadableChapter } from "./lib/catalog";
 import CatalogPulse from "./components/CatalogPulse";
 
 type Profile = {
@@ -110,6 +110,61 @@ function validHttpUrl(value: string) {
   }
 }
 
+type ReadingProgress = {
+  item: CatalogItem;
+  chapterId: string;
+  chapterTitle: string;
+  pageIndex: number;
+  updatedAt: number;
+};
+
+type CachedChapterFeed = {
+  chapters: ReadableChapter[];
+  nextOffset: number;
+  hasMore: boolean;
+};
+
+function readingProgressKey(scope: string) {
+  return "kova-reading-progress-v1:" + scope;
+}
+
+function chapterCacheKey(scope: string, itemId: string) {
+  return "kova-chapter-cache-v1:" + scope + ":" + itemId;
+}
+
+function readReadingProgress(scope: string): ReadingProgress | null {
+  try {
+    const raw = localStorage.getItem(readingProgressKey(scope));
+    if (!raw) return null;
+    const value = JSON.parse(raw) as ReadingProgress;
+    if (!value?.item?.id || !value.item.title || !value.chapterId || typeof value.chapterTitle !== "string") return null;
+    return {
+      ...value,
+      item: { ...value.item, chapters: undefined },
+      pageIndex: Math.max(0, Math.floor(Number(value.pageIndex) || 0)),
+      updatedAt: Number(value.updatedAt) || Date.now(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readChapterCache(scope: string, itemId: string): CachedChapterFeed | null {
+  try {
+    const raw = localStorage.getItem(chapterCacheKey(scope, itemId));
+    if (!raw) return null;
+    const value = JSON.parse(raw) as CachedChapterFeed;
+    if (!Array.isArray(value.chapters) || !Number.isFinite(value.nextOffset)) return null;
+    return {
+      chapters: value.chapters,
+      nextOffset: Math.max(0, Math.floor(value.nextOffset)),
+      hasMore: Boolean(value.hasMore),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function MediaCard({
   item,
   saved,
@@ -162,6 +217,8 @@ export default function App() {
   const catalogRequestId = useRef(0);
   const chapterListRequestId = useRef(0);
   const readerPagesRequestId = useRef(0);
+  const restorePageIndexRef = useRef<number | null>(null);
+  const lastPersistedPageRef = useRef("");
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile>({});
   const [loadingAuth, setLoadingAuth] = useState(true);
@@ -184,6 +241,8 @@ export default function App() {
   const [readerChapterPages, setReaderChapterPages] = useState<string[]>([]);
   const [readerChapterId, setReaderChapterId] = useState("");
   const [readerChapterTitle, setReaderChapterTitle] = useState("");
+  const [readerPageIndex, setReaderPageIndex] = useState(0);
+  const [readingProgress, setReadingProgress] = useState<ReadingProgress | null>(null);
   const [readerQuality, setReaderQuality] = useState<"data" | "data-saver">("data-saver");
   const [chapterListLoading, setChapterListLoading] = useState(false);
   const [chapterListError, setChapterListError] = useState("");
@@ -207,6 +266,7 @@ export default function App() {
   const [anilistToken, setAniListToken] = useState("");
   const [anilistName, setAniListName] = useState("");
   const [anilistBusy, setAniListBusy] = useState(false);
+  const readingStorageScope = user?.uid ?? "guest";
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
@@ -297,6 +357,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (loadingAuth) return;
+    setReadingProgress(readReadingProgress(readingStorageScope));
+  }, [readingStorageScope, loadingAuth]);
+
+  useEffect(() => {
     catalogRequestId.current += 1;
     const controller = new AbortController();
     let alive = true;
@@ -327,6 +392,89 @@ export default function App() {
       controller.abort();
     };
   }, [selectedKind, query, refreshIndex]);
+
+  useEffect(() => {
+    if (screen !== "reader" || !selectedItem || !readerChapterId || readerChapterPages.length === 0) return;
+    const updateVisiblePage = () => {
+      if (restorePageIndexRef.current !== null) return;
+      const images = Array.from(document.querySelectorAll<HTMLImageElement>(".full-reader-pages img[data-reader-page]"));
+      if (!images.length) return;
+      let bestIndex = 0;
+      let bestVisibleHeight = -1;
+      for (const image of images) {
+        const rect = image.getBoundingClientRect();
+        const visibleHeight = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
+        const index = Number(image.dataset.readerPage ?? 0);
+        if (visibleHeight > bestVisibleHeight) {
+          bestVisibleHeight = visibleHeight;
+          bestIndex = index;
+        }
+      }
+      const progressSignature = readerChapterId + ":" + bestIndex;
+      if (lastPersistedPageRef.current === progressSignature) return;
+      lastPersistedPageRef.current = progressSignature;
+      setReaderPageIndex(bestIndex);
+      persistReadingProgress(selectedItem, readerChapterId, readerChapterTitle, bestIndex);
+    };
+
+    const frame = window.requestAnimationFrame(() => {
+      const targetIndex = restorePageIndexRef.current;
+      if (targetIndex !== null) {
+        const selector = '.full-reader-pages img[data-reader-page="' + targetIndex + '"]';
+        const target = document.querySelector<HTMLImageElement>(selector);
+        if (target?.complete && target.naturalWidth > 0) {
+          restoreReaderPageOnImageLoad(targetIndex, target);
+        }
+      } else {
+        updateVisiblePage();
+      }
+    });
+    window.addEventListener("scroll", updateVisiblePage, { passive: true });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", updateVisiblePage);
+    };
+  }, [screen, selectedItem?.id, readerChapterId, readerChapterTitle, readerChapterPages, readingStorageScope]);
+
+  function persistReadingProgress(
+    item: CatalogItem,
+    chapterId: string,
+    chapterTitle: string,
+    pageIndex: number,
+  ) {
+    const progress: ReadingProgress = {
+      item: { ...item, chapters: undefined },
+      chapterId,
+      chapterTitle,
+      pageIndex: Math.max(0, Math.floor(pageIndex)),
+      updatedAt: Date.now(),
+    };
+    try {
+      localStorage.setItem(readingProgressKey(readingStorageScope), JSON.stringify(progress));
+      setReadingProgress(progress);
+    } catch {
+      setNotice("La progression ne peut pas être sauvegardée sur cet appareil pour le moment.");
+    }
+  }
+
+  function persistChapterCache(itemId: string, cache: CachedChapterFeed) {
+    try {
+      localStorage.setItem(chapterCacheKey(readingStorageScope, itemId), JSON.stringify(cache));
+    } catch {
+      // The reader remains usable if local storage is full.
+    }
+  }
+
+  function restoreReaderPageOnImageLoad(pageIndex: number, image: HTMLImageElement) {
+    if (restorePageIndexRef.current !== pageIndex) return;
+    image.scrollIntoView({ behavior: "auto", block: "start" });
+    restorePageIndexRef.current = null;
+    setReaderPageIndex(pageIndex);
+    lastPersistedPageRef.current = readerChapterId + ":" + pageIndex;
+    if (selectedItem && readerChapterId) {
+      persistReadingProgress(selectedItem, readerChapterId, readerChapterTitle, pageIndex);
+    }
+  }
 
   function goTo(nextScreen: Screen) {
     setScreen(nextScreen);
@@ -576,6 +724,12 @@ export default function App() {
     setReaderChapterTitle("");
 
     if (item.chapters?.length) {
+      const cache = readChapterCache(readingStorageScope, item.id);
+      setSelectedItem((current) => current?.id === item.id
+        ? { ...current, chapters: cache?.chapters ?? item.chapters }
+        : current);
+      setChapterPageOffset(cache?.nextOffset ?? 0);
+      setChapterPageHasMore(cache?.hasMore ?? false);
       setChapterListLoading(false);
       return;
     }
@@ -586,6 +740,7 @@ export default function App() {
       setSelectedItem((current) => current?.id === item.id ? { ...current, chapters: page.chapters } : current);
       setChapterPageOffset(page.nextOffset);
       setChapterPageHasMore(page.hasMore);
+      persistChapterCache(item.id, { chapters: page.chapters, nextOffset: page.nextOffset, hasMore: page.hasMore });
       if (page.chapters.length === 0 && !page.hasMore) {
         setChapterListError("Aucun chapitre lisible en français ou en anglais n'est disponible dans MangaDex pour ce titre.");
       }
@@ -594,6 +749,42 @@ export default function App() {
       setChapterListError(error instanceof Error ? error.message : "Impossible de récupérer les chapitres MangaDex.");
     } finally {
       if (requestId === chapterListRequestId.current) setChapterListLoading(false);
+    }
+  }
+
+  async function resumeReading() {
+    const progress = readingProgress;
+    if (!progress) return;
+    const cache = readChapterCache(readingStorageScope, progress.item.id);
+    const item: CatalogItem = { ...progress.item, chapters: cache?.chapters ?? [] };
+    setSelectedItem(item);
+    setReaderReturnScreen("home");
+    setReaderOpen(false);
+    setChapterPageOffset(cache?.nextOffset ?? 0);
+    setChapterPageHasMore(cache?.hasMore ?? false);
+    setChapterPageLoading(false);
+    setChapterVisibleCount(30);
+    setReaderChapterId(progress.chapterId);
+    setReaderChapterTitle(progress.chapterTitle);
+    setReaderPageIndex(progress.pageIndex);
+    restorePageIndexRef.current = progress.pageIndex;
+    lastPersistedPageRef.current = "";
+    setReaderError("");
+    setReaderChapterPages([]);
+    setReaderLoading(true);
+    setScreen("reader");
+    setMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: "auto" });
+    const requestId = ++readerPagesRequestId.current;
+    try {
+      const pages = await fetchMangaDexChapterPages(progress.chapterId, readerQuality);
+      if (requestId !== readerPagesRequestId.current) return;
+      setReaderChapterPages(pages);
+    } catch (error) {
+      if (requestId !== readerPagesRequestId.current) return;
+      setReaderError(error instanceof Error ? error.message : "Impossible de reprendre ce chapitre.");
+    } finally {
+      if (requestId === readerPagesRequestId.current) setReaderLoading(false);
     }
   }
 
@@ -622,6 +813,7 @@ export default function App() {
       setSelectedItem((current) => current?.id === item.id ? { ...current, chapters: merged } : current);
       setChapterPageOffset(page.nextOffset);
       setChapterPageHasMore(page.hasMore);
+      persistChapterCache(item.id, { chapters: merged, nextOffset: page.nextOffset, hasMore: page.hasMore });
       setChapterVisibleCount((current) => Math.min(merged.length, current + 30));
       if (merged.length === 0 && !page.hasMore) {
         setChapterListError("Aucun chapitre lisible en français ou en anglais n'est disponible dans MangaDex pour ce titre.");
@@ -634,13 +826,17 @@ export default function App() {
     }
   }
 
-  async function openMangaDexChapter(chapterId: string, chapterTitle: string) {
+  async function openMangaDexChapter(chapterId: string, chapterTitle: string, startPage = 0) {
     const requestId = ++readerPagesRequestId.current;
+    restorePageIndexRef.current = startPage > 0 ? startPage : null;
+    lastPersistedPageRef.current = "";
+    setReaderPageIndex(startPage);
     setReaderLoading(true);
     setReaderError("");
     setReaderChapterPages([]);
     setReaderChapterId(chapterId);
     setReaderChapterTitle(chapterTitle);
+    if (selectedItem) persistReadingProgress(selectedItem, chapterId, chapterTitle, startPage);
     if (screen !== "reader") setReaderReturnScreen(screen);
     setScreen("reader");
     setMenuOpen(false);
@@ -660,6 +856,8 @@ export default function App() {
   async function switchReaderQuality(nextQuality: "data" | "data-saver") {
     setReaderQuality(nextQuality);
     if (!readerChapterId) return;
+    restorePageIndexRef.current = readerPageIndex;
+    lastPersistedPageRef.current = "";
     const chapterId = readerChapterId;
     const requestId = ++readerPagesRequestId.current;
     setReaderLoading(true);
@@ -771,6 +969,20 @@ export default function App() {
                 <span className="art-orbit-label">MANGA · MANHWA</span>
               </div>
             </section>
+
+            {readingProgress && (
+              <section className="resume-reading-panel page-section" aria-label="Reprendre la lecture">
+                <div className="resume-reading-copy">
+                  <span className="section-kicker">REPRENDRE LA LECTURE</span>
+                  <h2>{readingProgress.item.title}</h2>
+                  <p>{readingProgress.chapterTitle}</p>
+                  <small>Dernière page enregistrée : {readingProgress.pageIndex + 1}</small>
+                </div>
+                <button className="primary-button" onClick={() => void resumeReading()}>
+                  <BookOpen size={17} /> Reprendre la lecture <ArrowRight size={16} />
+                </button>
+              </section>
+            )}
 
             <section className="quick-explore page-section">
               <div className="section-heading">
@@ -895,13 +1107,22 @@ export default function App() {
                 {readerQuality === "data-saver" ? "Mode Éco actif · Passer en HQ" : "HQ actif · Passer en Éco"}
               </button>
               <span>{readerQuality === "data-saver" ? "Images compressées pour économiser les données mobiles." : "Images d'origine, plus gourmandes en données."}</span>
-              {readerChapterPages.length > 0 && <span>{readerChapterPages.length} pages</span>}
+              {readerChapterPages.length > 0 && <span>Page {Math.min(readerPageIndex + 1, readerChapterPages.length)} / {readerChapterPages.length}</span>}
             </div>
-            {readerError && <div className="reader-error"><p>{readerError}</p><button className="secondary-button" onClick={() => void openMangaDexChapter(readerChapterId, readerChapterTitle)}>Réessayer</button></div>}
+            {readerError && <div className="reader-error"><p>{readerError}</p><button className="secondary-button" onClick={() => void openMangaDexChapter(readerChapterId, readerChapterTitle, readerPageIndex)}>Réessayer</button></div>}
             {readerLoading && <LoadingState text="MangaDex charge les pages du chapitre…" />}
             {!readerLoading && readerChapterPages.length > 0 && (
               <div className="mangadex-pages full-reader-pages">
-                {readerChapterPages.map((pageUrl, pageIndex) => <img key={pageUrl} src={pageUrl} alt={"Page " + (pageIndex + 1) + " · " + readerChapterTitle} loading={pageIndex < 2 ? "eager" : "lazy"} />)}
+                {readerChapterPages.map((pageUrl, pageIndex) => (
+                  <img
+                    key={pageUrl}
+                    data-reader-page={pageIndex}
+                    src={pageUrl}
+                    alt={"Page " + (pageIndex + 1) + " · " + readerChapterTitle}
+                    loading={pageIndex < 2 || (restorePageIndexRef.current !== null && pageIndex <= restorePageIndexRef.current) ? "eager" : "lazy"}
+                    onLoad={(event) => restoreReaderPageOnImageLoad(pageIndex, event.currentTarget)}
+                  />
+                ))}
               </div>
             )}
             {!readerLoading && !readerError && readerChapterPages.length === 0 && <EmptyState title="Aucune page chargée" text="Choisis un chapitre depuis la fiche MangaDex pour commencer." />}
