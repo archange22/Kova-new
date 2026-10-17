@@ -339,6 +339,10 @@ export default function App() {
       if (!currentUser) {
         setProfile({});
         setLibrary([]);
+        setSupportTickets([]);
+        setSupportTicketId("");
+        setSupportMessages([]);
+        setSupportOpen(false);
         setLoadingAuth(false);
         return;
       }
@@ -895,7 +899,7 @@ export default function App() {
       const messageRef = doc(collection(db, "supportTickets", ticketRef.id, "messages"));
       await setDoc(messageRef, {
         authorUid: user.uid,
-        authorName: displayName,
+        authorName: displayName.slice(0, 60),
         authorRole: isSupportAdmin(user.uid) ? "support" : "user",
         body: body.slice(0, 4000),
         createdAt: serverTimestamp(),
