@@ -1110,6 +1110,7 @@ export default function App() {
       if (profileUid) {
         setPublicProfileLoading(true);
         setPublicProfile({ uid: profileUid, username: "Chargement…", bio: "", photoURL: "", bannerURL: "" });
+        setPublicProfileFollowing(false);
         void (async () => {
           try {
             const [profileSnapshot, followersSnapshot, followingSnapshot] = await Promise.all([
@@ -1461,7 +1462,7 @@ export default function App() {
                 <div className="premium-profile-identity"><span className="premium-profile-kicker"><Sparkles size={13} /> KOVA MEMBER</span><h3>{publicProfile.username || "Lecteur KOVA"}</h3>
                   {publicProfile.uid === "fL5Gz1lTOUY11JRu14KHKcDD95q1" && <span className="premium-owner-badge"><ShieldCheck size={13} /> OWNER</span>}
                 </div>
-                {user?.uid === publicProfile.uid ? <button className="secondary-button" onClick={() => { setPublicProfile(null); openProfile(); }}>Modifier le profil</button> : <button className={publicProfileFollowing ? "secondary-button profile-follow-button is-following" : "primary-button profile-follow-button"} onClick={() => void togglePublicProfileFollow()} disabled={followBusy || !user}>{publicProfileFollowing ? <UserCheck size={16} /> : <UserPlus size={16} />}{followBusy ? "Patiente…" : publicProfileFollowing ? "Abonné" : user ? "Suivre" : "Connecte-toi pour suivre"}</button>}
+                {user?.uid === publicProfile.uid ? <button className="secondary-button" onClick={() => { setPublicProfile(null); openProfile(); }}>Modifier le profil</button> : <button className={publicProfileFollowing ? "secondary-button profile-follow-button is-following" : "primary-button profile-follow-button"} onClick={() => void togglePublicProfileFollow()} disabled={followBusy}>{publicProfileFollowing ? <UserCheck size={16} /> : <UserPlus size={16} />}{followBusy ? "Patiente…" : publicProfileFollowing ? "Abonné" : user ? "Suivre" : "Connecte-toi pour suivre"}</button>}
               </div>
               <div className="premium-profile-body">
                 <div className="premium-profile-section"><span className="section-kicker">À PROPOS</span><p>{publicProfile.bio?.trim() || "Ce lecteur préfère laisser son profil mystérieux."}</p></div>
