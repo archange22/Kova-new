@@ -37,7 +37,7 @@ import {
   X,
 } from "lucide-react";
 import { auth, db } from "./lib/firebase";
-import { fetchCatalog, fetchMangaDexChapters, fetchMangaDexChapterPages } from "./lib/catalog";
+import { fetchCatalog, fetchMangaDexChapters, fetchMangaDexChapterPages } from "./lib/catalog";\nimport { enrichWithAniList } from "./lib/anilist";
 import type { CatalogItem, CatalogKind, CatalogPage } from "./lib/catalog";
 
 type Profile = {
@@ -129,7 +129,7 @@ function MediaCard({
         <span className="media-card-copy">
           <strong className="media-title">{item.title}</strong>
           <span className="media-meta">{item.year ?? "Année inconnue"}{item.status ? ` · ${item.status === "finished" ? "Terminé" : item.status === "current" ? "En cours" : item.status}` : ""}</span>
-          <span className="media-source">Catalogue MangaDex</span>
+          <span className="media-source">{item.anilistId ? "MangaDex · AniList reliés" : "Catalogue MangaDex"}</span>
         </span>
       </button>
       <button
@@ -496,7 +496,7 @@ export default function App() {
       const page = await fetchCatalog(selectedKind, query, offset);
       setItems((current) => {
         const ids = new Set(current.map((item) => item.id));
-        return [...current, ...page.items.filter((item) => !ids.has(item.id))];
+        return [...current, ...enrichedItems.filter((item) => !ids.has(item.id))];
       });
       setOffset(page.nextOffset);
       setHasMore(page.hasMore);
