@@ -25,8 +25,14 @@ service cloud.firestore {
       allow read: if ownsUser(userId);
       allow create: if ownsUser(userId)
         && request.resource.data.uid == userId;
+      // Allow a one-time safe migration for older user documents that were created
+      // without a uid field, while preserving the original createdAt value.
       allow update: if ownsUser(userId)
-        && request.resource.data.uid == resource.data.uid
+        && (
+          !resource.data.keys().hasAny(['uid'])
+          || request.resource.data.uid == resource.data.uid
+        )
+        && request.resource.data.uid == userId
         && request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if ownsUser(userId);
 
