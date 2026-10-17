@@ -1387,21 +1387,39 @@ export default function App() {
       {profileOpen && user && (
         <Modal title="Personnaliser mon profil" subtitle="Un profil premium, gratuit, avec ta bannière, ton avatar et ta signature." onClose={() => setProfileOpen(false)} wide>
           <form className="form-stack premium-profile-editor" onSubmit={saveProfile}>
-            <div className="premium-profile-cover editor-cover">
-              {profileDraft.bannerURL ? <img src={profileDraft.bannerURL} alt="Aperçu de la bannière" /> : <div className="premium-profile-cover-art"><span>KOVA</span><Sparkles size={30} /></div>}
-              <div className="premium-profile-cover-shade" /><span className="premium-cover-label">BANNIÈRE DE PROFIL</span>
+            <div className="profile-editor-hero">
+              <div className="profile-editor-hero-copy"><span className="section-kicker">TON IDENTITÉ KOVA</span><h3>Fais de ton profil ton univers.</h3><p>Choisis une bannière, un avatar et quelques mots qui te ressemblent.</p></div>
+              <span className="profile-free-pill"><Sparkles size={13} /> PREMIUM · GRATUIT</span>
             </div>
-            <div className="premium-profile-editor-avatar">
-              {profileDraft.photoURL ? <img src={profileDraft.photoURL} alt="Aperçu de la photo" /> : <span>{(profileDraft.username || displayName).slice(0, 1).toUpperCase()}</span>}
-              <div><strong>{profileDraft.username || displayName}</strong><small>Profil KOVA · gratuit pour tous</small></div>
+            <section className="profile-image-panel">
+              <div className="premium-profile-cover editor-cover">
+                {profileDraft.bannerURL ? <img src={profileDraft.bannerURL} alt="Aperçu de la bannière" /> : <div className="premium-profile-cover-art"><span>KOVA</span><Sparkles size={30} /></div>}
+                <div className="premium-profile-cover-shade" /><span className="premium-cover-label">APERÇU DE LA BANNIÈRE</span>
+              </div>
+              <div className="profile-image-controls">
+                <div className="profile-image-description"><strong>Ta bannière</strong><small>Format large conseillé · paysage</small></div>
+                <label className="profile-upload-button"><span><Sparkles size={15} /> Choisir une image</span><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => { void handleImageFile("bannerURL", event.target.files?.[0]); event.currentTarget.value = ""; }} /></label>
+                {profileDraft.bannerURL && <button className="profile-clear-button" type="button" onClick={() => setProfileDraft((draft) => ({ ...draft, bannerURL: "" }))}>Retirer</button>}
+              </div>
+              <div className="profile-avatar-row">
+                <div className="premium-profile-editor-avatar">
+                  {profileDraft.photoURL ? <img src={profileDraft.photoURL} alt="Aperçu de la photo" /> : <span>{(profileDraft.username || displayName).slice(0, 1).toUpperCase()}</span>}
+                  <div><strong>{profileDraft.username || displayName}</strong><small>Photo de profil · visible sur KOVA</small></div>
+                </div>
+                <label className="profile-upload-button profile-avatar-upload"><span><UserRound size={15} /> Changer l’avatar</span><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => { void handleImageFile("photoURL", event.target.files?.[0]); event.currentTarget.value = ""; }} /></label>
+                {profileDraft.photoURL && <button className="profile-clear-button" type="button" onClick={() => setProfileDraft((draft) => ({ ...draft, photoURL: "" }))}>Retirer</button>}
+              </div>
+            </section>
+            <div className="profile-form-section"><span className="section-kicker">LES DÉTAILS</span><h3>Présente-toi</h3>
+              <label>Pseudonyme<input value={profileDraft.username} onChange={(event) => setProfileDraft((draft) => ({ ...draft, username: event.target.value }))} maxLength={30} placeholder="Ton pseudo" /><small className="profile-field-hint">{profileDraft.username.length}/30 caractères</small></label>
+              <label>À propos<textarea value={profileDraft.bio} onChange={(event) => setProfileDraft((draft) => ({ ...draft, bio: event.target.value }))} maxLength={180} rows={3} placeholder="Tes mangas favoris, tes genres préférés, ton univers…" /><small className="profile-field-hint">{profileDraft.bio.length}/180 caractères</small></label>
             </div>
-            <label>Pseudonyme<input value={profileDraft.username} onChange={(event) => setProfileDraft((draft) => ({ ...draft, username: event.target.value }))} maxLength={30} placeholder="Ton pseudo" /></label>
-            <label>À propos<textarea value={profileDraft.bio} onChange={(event) => setProfileDraft((draft) => ({ ...draft, bio: event.target.value }))} maxLength={180} rows={3} placeholder="Présente-toi en quelques mots…" /></label>
-            <div className="premium-profile-fields">
-              <label>Photo de profil<input type="file" accept="image/*" onChange={(event) => void handleImageFile("photoURL", event.target.files?.[0])} /><input value={profileDraft.photoURL.startsWith("data:") ? "Image sélectionnée" : profileDraft.photoURL} onChange={(event) => setProfileDraft((draft) => ({ ...draft, photoURL: event.target.value }))} type="url" placeholder="Ou URL https://…" /></label>
-              <label>Bannière<input type="file" accept="image/*" onChange={(event) => void handleImageFile("bannerURL", event.target.files?.[0])} /><input value={profileDraft.bannerURL.startsWith("data:") ? "Image sélectionnée" : profileDraft.bannerURL} onChange={(event) => setProfileDraft((draft) => ({ ...draft, bannerURL: event.target.value }))} type="url" placeholder="Ou URL https://…" /></label>
-            </div>
-            <p className="modal-footnote">Les images sont compressées avant leur sauvegarde. Chaque image reste légère pour Firestore.</p>
+            <details className="profile-url-options"><summary>Options avancées · utiliser une URL d’image</summary>
+              <p>Tu peux aussi coller un lien direct vers une image publique en HTTPS.</p>
+              <label>URL de la photo de profil<input value={profileDraft.photoURL.startsWith("data:") ? "" : profileDraft.photoURL} onChange={(event) => setProfileDraft((draft) => ({ ...draft, photoURL: event.target.value }))} type="url" placeholder="https://…" /></label>
+              <label>URL de la bannière<input value={profileDraft.bannerURL.startsWith("data:") ? "" : profileDraft.bannerURL} onChange={(event) => setProfileDraft((draft) => ({ ...draft, bannerURL: event.target.value }))} type="url" placeholder="https://…" /></label>
+            </details>
+            <p className="modal-footnote profile-image-note"><ShieldCheck size={15} /> Les images sont redimensionnées et compressées sur ton appareil avant l’enregistrement. Aucun abonnement ni Firebase Storage requis.</p>
             <button className="primary-button full-button" type="submit" disabled={profileBusy}>{profileBusy ? "Enregistrement…" : "Enregistrer mon profil"} <Check size={17} /></button>
             <button className="secondary-button full-button" type="button" onClick={() => { setProfileOpen(false); navigatePath("/profil/" + user.uid); }}>Voir mon profil public <ArrowRight size={16} /></button>
           </form>
