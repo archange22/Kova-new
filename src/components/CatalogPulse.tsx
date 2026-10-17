@@ -106,10 +106,18 @@ export async function fetchChapterUpdates(
   mode: "recent" | "scheduled",
   signal: AbortSignal,
 ): Promise<ChapterUpdate[]> {
+  const now = Date.now();
+  const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+  const horizon = now + 30 * 24 * 60 * 60 * 1000;
+  // MangaDex accepts publishAtSince but no publishAtUntil filter on GET /chapter.
+  // Apply the lower date bound before pagination so old records cannot crowd out
+  // upcoming releases from the API's 100-result page.
+  const apiDateTime = (value: number) => new Date(value).toISOString().slice(0, 19);
   const params = new URLSearchParams();
   params.set("limit", "100");
   params.set("includeExternalUrl", "0");
   params.set("includeFuturePublishAt", mode === "scheduled" ? "1" : "0");
+  params.set("publishAtSince", apiDateTime(mode === "scheduled" ? now : weekAgo));
   params.set("order[publishAt]", mode === "scheduled" ? "asc" : "desc");
   params.append("translatedLanguage[]", "fr");
   params.append("translatedLanguage[]", "en");
@@ -120,9 +128,6 @@ export async function fetchChapterUpdates(
     "/chapter?" + params.toString(),
     signal,
   );
-  const now = Date.now();
-  const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
-  const horizon = now + 30 * 24 * 60 * 60 * 1000;
 
   const chapters = (response.data ?? []).filter((chapter) => {
     const a = chapter.attributes;
