@@ -311,6 +311,16 @@ main { width: min(1320px, calc(100% - 2 * clamp(18px, 5.5vw, 84px))); margin: 0 
 .explore-heading > p { font-size: 13px; }
 .library-page { min-height: 64vh; padding-top: 58px; }
 .library-heading { margin-bottom: 35px; }
+.anilist-sync-panel { display: grid; gap: 18px; margin: 0 0 28px; padding: 22px; border: 1px solid rgba(181,154,255,.22); border-radius: 18px; background: linear-gradient(135deg, rgba(146,94,244,.10), rgba(21,16,31,.75)); }
+.anilist-sync-panel h2 { margin: 8px 0; font: 600 19px "Space Grotesk", sans-serif; }
+.anilist-sync-panel p, .anilist-sync-panel small { color: var(--muted); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.anilist-sync-panel p { margin: 0; }
+.anilist-sync-panel small { display: block; }
+.anilist-connect-controls { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
+.anilist-connect-controls label { display: grid; flex: 1 1 220px; gap: 7px; color: var(--muted); font-size: 11px; }
+.anilist-connect-controls input { width: 100%; min-height: 42px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(9,8,15,.7); color: var(--text); outline: none; }
+.anilist-connect-controls input:focus { border-color: var(--purple); }
+.anilist-connect-controls button:disabled { opacity: .6; cursor: wait; }
 .library-heading p { margin: 12px 0 0; color: var(--muted); font-size: 13px; }
 .library-count { padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.03); color: var(--purple); font-size: 11px; }
 .purple-period { color: var(--purple); }
