@@ -67,6 +67,54 @@ service cloud.firestore {
       }
     }
 
+    // Public member cards contain only fields intended for public display.
+    // Private account data remains isolated in /users/{userId}.
+    match /publicProfiles/{userId} {
+      allow get, list: if true;
+      allow create: if ownsUser(userId)
+        && request.resource.data.uid == userId
+        && request.resource.data.keys().hasOnly([
+          'uid', 'username', 'bio', 'photoURL', 'bannerURL', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.username is string
+        && request.resource.data.username.size() <= 30
+        && request.resource.data.bio is string
+        && request.resource.data.bio.size() <= 180
+        && request.resource.data.photoURL is string
+        && request.resource.data.photoURL.size() <= 320000
+        && request.resource.data.bannerURL is string
+        && request.resource.data.bannerURL.size() <= 320000;
+      allow update: if ownsUser(userId)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'username', 'bio', 'photoURL', 'bannerURL', 'updatedAt'
+        ])
+        && request.resource.data.username is string
+        && request.resource.data.username.size() <= 30
+        && request.resource.data.bio is string
+        && request.resource.data.bio.size() <= 180
+        && request.resource.data.photoURL is string
+        && request.resource.data.photoURL.size() <= 320000
+        && request.resource.data.bannerURL is string
+        && request.resource.data.bannerURL.size() <= 320000;
+      allow delete: if ownsUser(userId);
+    }
+
+    // Follow edges are public for counts, but only the follower can create/remove their edge.
+    match /follows/{followId} {
+      allow get, list: if true;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['followerUid', 'followingUid', 'createdAt'])
+        && request.resource.data.keys().hasAll(['followerUid', 'followingUid', 'createdAt'])
+        && request.resource.data.followerUid == request.auth.uid
+        && request.resource.data.followingUid is string
+        && request.resource.data.followingUid != request.auth.uid
+        && followId == request.auth.uid + '_' + request.resource.data.followingUid
+        && request.resource.data.createdAt is timestamp;
+      allow delete: if signedIn() && resource.data.followerUid == request.auth.uid;
+      allow update: if false;
+    }
+
     match /supportTickets/{ticketId} {
       allow get, list: if supportAdmin()
         || (signedIn() && resource.data.uid == request.auth.uid);
