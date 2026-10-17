@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, BookOpen, CalendarDays, Clock3, Flame, RefreshCw, Sparkles } from "lucide-react";
 import { fetchCatalog } from "../lib/catalog";
-import type { CatalogItem, CatalogKind } from "../lib/catalog";
+import type { CatalogItem } from "../lib/catalog";
 
 type MangaDexRelation = {
   id: string;
