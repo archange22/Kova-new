@@ -281,3 +281,42 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .reader-credit { font-size: 10px; }
   .notice-toast { right: 10px; bottom: max(10px, env(safe-area-inset-bottom)); max-width: calc(100vw - 20px); }
 }
+
+
+/* Last-read resume panel: compact and finger-friendly on phones. */
+.resume-reading-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  padding: 20px 22px;
+  border: 1px solid rgba(181,154,255,.24);
+  border-radius: 20px;
+  background:
+    radial-gradient(ellipse at 0% 0%, rgba(142,91,245,.16), transparent 58%),
+    linear-gradient(135deg, rgba(26,19,41,.96), rgba(15,11,24,.98));
+}
+.resume-reading-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 6px; }
+.resume-reading-copy h2 {
+  margin: 2px 0 0;
+  color: var(--text);
+  font: 600 clamp(19px, 2.6vw, 27px)/1.25 "Space Grotesk", sans-serif;
+  overflow-wrap: anywhere;
+}
+.resume-reading-copy p { margin: 0; color: #d1c1ed; font-size: 13px; line-height: 1.5; }
+.resume-reading-copy small { color: var(--muted); font-size: 11px; }
+.resume-reading-panel > .primary-button { flex: 0 0 auto; min-height: 44px; }
+.reader-page-controls .page-progress-label { color: var(--purple); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 650px) {
+  .resume-reading-panel {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 15px;
+    padding: 16px;
+    border-radius: 16px;
+  }
+  .resume-reading-copy h2 { font-size: 20px; }
+  .resume-reading-copy p { font-size: 12px; }
+  .resume-reading-panel > .primary-button { width: 100%; justify-content: center; }
+}
