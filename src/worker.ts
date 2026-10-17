@@ -29,6 +29,26 @@ export default {
       return new Response(null, { status: 204, headers: cors });
     }
 
+    const isAniListRequest = url.pathname === "/api/anilist";
+    if (isAniListRequest && request.method === "POST") {
+      try {
+        const body = await request.text();
+        if (body.length > 32000) return new Response("Request too large", { status: 413 });
+        const parsed = JSON.parse(body) as { query?: unknown };
+        if (typeof parsed.query !== "string" || parsed.query.length > 28000) {
+          return new Response("Invalid GraphQL query", { status: 400 });
+        }
+        const response = await fetch(ANILIST_ORIGIN, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body,
+        });
+        const headers = new Headers({ "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=300", ...cors });
+        return new Response(response.body, { status: response.status, headers });
+      } catch {
+        return new Response(JSON.stringify({ errors: [{ message: "AniList est momentanément indisponible." }] }), { status: 502, headers: { "Content-Type": "application/json; charset=utf-8", ...cors } });
+      }
+    }
     if (request.method !== "GET" && request.method !== "HEAD") {
       return new Response("Method not allowed", { status: 405 });
     }
