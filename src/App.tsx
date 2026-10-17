@@ -104,6 +104,52 @@ function getRoleForUid(uid: string): "user" | "owner" {
   return uid === OWNER_UID ? "owner" : "user";
 }
 
+async function ensureKovaProfile(currentUser: User): Promise<Profile> {
+  const profileRef = doc(db, "users", currentUser.uid);
+  const profileSnapshot = await getDoc(profileRef);
+  const existing = profileSnapshot.exists() ? profileSnapshot.data() as Profile & { uid?: string } : null;
+  const loadedProfile: Profile = {
+    username: (existing?.username || currentUser.displayName || currentUser.email?.split("@")[0] || "Lecteur").slice(0, 30),
+    email: currentUser.email || "",
+    bio: (existing?.bio || "").slice(0, 180),
+    photoURL: existing?.photoURL || currentUser.photoURL || "",
+    bannerURL: existing?.bannerURL || "",
+    role: getRoleForUid(currentUser.uid),
+  };
+
+  if (!profileSnapshot.exists()) {
+    await setDoc(profileRef, {
+      uid: currentUser.uid,
+      ...loadedProfile,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } else if (currentUser.uid === OWNER_UID && existing?.role !== "owner") {
+    // The owner role is derived from the fixed Auth UID, never from client-editable profile data.
+    await setDoc(profileRef, { role: "owner", updatedAt: serverTimestamp() }, { merge: true });
+    loadedProfile.role = "owner";
+  }
+
+  // Never copy email or other private fields into the public document.
+  const publicRef = doc(db, "publicProfiles", currentUser.uid);
+  const publicSnapshot = await getDoc(publicRef);
+  const publicProfile = {
+    uid: currentUser.uid,
+    username: loadedProfile.username || "Lecteur KOVA",
+    bio: loadedProfile.bio || "",
+    photoURL: loadedProfile.photoURL || "",
+    bannerURL: loadedProfile.bannerURL || "",
+  };
+  if (!publicSnapshot.exists()) {
+    await setDoc(publicRef, {
+      ...publicProfile,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+  return loadedProfile;
+}
+
 function timestampMillis(value?: { toMillis?: () => number } | null) {
   return value && typeof value.toMillis === "function" ? value.toMillis() : 0;
 }
@@ -373,50 +419,11 @@ export default function App() {
       }
 
       try {
-        const profileRef = doc(db, "users", currentUser.uid);
-        const snapshot = await getDoc(profileRef);
-        let loadedProfile: Profile;
-        if (snapshot.exists()) {
-          loadedProfile = snapshot.data() as Profile;
-          // The owner identity comes from Firebase Authentication, never from an editable role field.
-          if (currentUser.uid === OWNER_UID) loadedProfile.role = "owner";
-        } else {
-          loadedProfile = {
-            username: currentUser.displayName || currentUser.email?.split("@")[0] || "Lecteur",
-            email: currentUser.email || "",
-            bio: "",
-            photoURL: currentUser.photoURL || "",
-            bannerURL: "",
-            role: getRoleForUid(currentUser.uid),
-          };
-          await setDoc(profileRef, {
-            uid: currentUser.uid,
-            ...loadedProfile,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          });
-        }
+        // A single centralized routine creates/repairs both documents. Signup handlers do not write
+        // profiles separately, avoiding competing first writes when Auth state changes.
+        const loadedProfile = await ensureKovaProfile(currentUser);
         if (!alive) return;
         setProfile(loadedProfile);
-        // Publish only profile-safe fields in a separate document; never expose the private users document.
-        // Profile publication is isolated so missing/unpublished community rules never block sign-in or the library.
-        try {
-          const publicRef = doc(db, "publicProfiles", currentUser.uid);
-          const publicSnapshot = await getDoc(publicRef);
-          if (!publicSnapshot.exists()) {
-            await setDoc(publicRef, {
-              uid: currentUser.uid,
-              username: (loadedProfile.username || currentUser.displayName || "Lecteur KOVA").slice(0, 30),
-              bio: (loadedProfile.bio || "").slice(0, 180),
-              photoURL: loadedProfile.photoURL || currentUser.photoURL || "",
-              bannerURL: loadedProfile.bannerURL || "",
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            });
-          }
-        } catch {
-          // Community rules may need to be published in Firebase before public profiles are available.
-        }
 
         const librarySnapshot = await getDocs(collection(db, "users", currentUser.uid, "library"));
         const entries = librarySnapshot.docs
@@ -510,21 +517,7 @@ export default function App() {
         const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
         const chosenName = username.trim() || email.trim().split("@")[0];
         await updateProfile(credential.user, { displayName: chosenName });
-        const newProfile = {
-          username: chosenName,
-          email: credential.user.email || email.trim(),
-          bio: "",
-          photoURL: "",
-          bannerURL: "",
-          role: getRoleForUid(credential.user.uid),
-        };
-        await setDoc(doc(db, "users", credential.user.uid), {
-          uid: credential.user.uid,
-          ...newProfile,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-        setProfile(newProfile);
+        // onAuthStateChanged performs the one centralized profile initialization.
         setNotice("Compte créé. Bienvenue dans KOVA !");
       } else {
         await signInWithEmailAndPassword(auth, email.trim(), password);
@@ -548,33 +541,7 @@ export default function App() {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
       const result = await signInWithPopup(auth, provider);
-      const googleUser = result.user;
-      const profileRef = doc(db, "users", googleUser.uid);
-      const profileSnapshot = await getDoc(profileRef);
-
-      if (profileSnapshot.exists()) {
-        setProfile(profileSnapshot.data() as Profile);
-      } else {
-        const chosenName = googleUser.displayName?.trim()
-          || googleUser.email?.split("@")[0]
-          || "Lecteur";
-        const newProfile = {
-          username: chosenName,
-          email: googleUser.email || "",
-          bio: "",
-          photoURL: googleUser.photoURL || "",
-          bannerURL: "",
-          role: getRoleForUid(googleUser.uid),
-        };
-        await setDoc(profileRef, {
-          uid: googleUser.uid,
-          ...newProfile,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-        setProfile(newProfile);
-      }
-
+      // onAuthStateChanged initializes the private and public profile exactly once.
       setPassword("");
       setPasswordVisible(false);
       setAuthOpen(false);
