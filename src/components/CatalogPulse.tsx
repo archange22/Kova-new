@@ -273,12 +273,6 @@ export default function CatalogPulse({
     };
   }, [refresh]);
 
-  const releaseGroups = new Map<string, ChapterUpdate[]>();
-  recent.forEach((release) => {
-    const key = new Date(release.publishAt).toISOString().slice(0, 10);
-    releaseGroups.set(key, [...(releaseGroups.get(key) ?? []), release]);
-  });
-
   return (
     <section className="page-section catalog-pulse" aria-label="Classements et calendrier MangaDex">
       <div className="section-heading pulse-main-heading">
