@@ -1069,7 +1069,7 @@ export default function App() {
           </section>
         )}
 
-        {screen !== "reader" && (
+        {screen !== "reader" && screen !== "login" && screen !== "detail" && (
           <section className="source-section page-section">
             <div className="source-copy"><span className="section-kicker">SOURCE UNIQUE</span><h2>Manga et manhwa.<br /><span>Propulsés par MangaDex.</span></h2><p>KOVA utilise l'API publique MangaDex pour rechercher les titres et charger les chapitres disponibles. Les groupes de traduction sont crédités dans le lecteur.</p></div>
             <div className="official-links"><div className="official-reading-note"><span className="official-icon">M</span><span><strong>MangaDex API</strong><small>Catalogue et pages affichés dans KOVA, sans quitter le site</small></span><ShieldCheck size={16} /></div></div>
