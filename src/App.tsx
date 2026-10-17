@@ -774,6 +774,7 @@ export default function App() {
       void openTitle(item);
       const chapterId = decodeURIComponent(parts[2]);
       void openMangaDexChapter(chapterId, "Chapitre");
+      navigatePath(routeKey, true);
     } else {
       void openTitle(item);
       setScreen("explore");
