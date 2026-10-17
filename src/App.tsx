@@ -399,6 +399,7 @@ export default function App() {
       }
       setPassword("");
       setAuthOpen(false);
+      if (routePath === "/connexion") navigatePath("/", true);
     } catch (error) {
       setNotice(friendlyError(error));
     } finally {
@@ -1055,7 +1056,7 @@ export default function App() {
       )}
 
       {selectedItem && screen !== "reader" && (
-        <Modal title={selectedItem.title} subtitle={`${selectedItem.kind === "manhwa" ? "Manhwa" : "Manga"} · ${selectedItem.year ?? "Année inconnue"} · MangaDex`} onClose={() => { setSelectedItem(null); setReaderOpen(false); setReaderChapterPages([]); setReaderChapterId(""); setReaderError(""); }} wide>
+        <Modal title={selectedItem.title} subtitle={`${selectedItem.kind === "manhwa" ? "Manhwa" : "Manga"} · ${selectedItem.year ?? "Année inconnue"} · MangaDex`} onClose={() => { setSelectedItem(null); setReaderOpen(false); setReaderChapterPages([]); setReaderChapterId(""); setReaderError(""); navigatePath("/explorer"); }} wide>
           <div className="detail-layout">
             <div className="detail-cover">
               {selectedItem.cover ? <img src={selectedItem.cover} alt={`Couverture de ${selectedItem.title}`} /> : <span className="cover-placeholder"><BookOpen size={32} /><span>KOVA</span></span>}
