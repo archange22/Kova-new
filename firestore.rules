@@ -11,6 +11,7 @@ service cloud.firestore {
 
     function supportAdmin() {
       return signedIn() && request.auth.uid in [
+        'fL5Gz1lTOUY11JRu14KHKcDD95q1',
         'TIat7e3WQyXIk9HyLdjPxsfZ6R92',
         'B23E8GVKHIUnzgdK5YScoiZzsnG3'
       ];
