@@ -126,26 +126,31 @@ async function ensureKovaProfile(currentUser: User): Promise<Profile> {
     });
   } else if (currentUser.uid === OWNER_UID && existing?.role !== "owner") {
     // The owner role is derived from the fixed Auth UID, never from client-editable profile data.
-    await setDoc(profileRef, { role: "owner", updatedAt: serverTimestamp() }, { merge: true });
+    await setDoc(profileRef, { role: "owner" }, { merge: true });
     loadedProfile.role = "owner";
   }
 
   // Never copy email or other private fields into the public document.
-  const publicRef = doc(db, "publicProfiles", currentUser.uid);
-  const publicSnapshot = await getDoc(publicRef);
-  const publicProfile = {
-    uid: currentUser.uid,
-    username: loadedProfile.username || "Lecteur KOVA",
-    bio: loadedProfile.bio || "",
-    photoURL: loadedProfile.photoURL || "",
-    bannerURL: loadedProfile.bannerURL || "",
-  };
-  if (!publicSnapshot.exists()) {
-    await setDoc(publicRef, {
-      ...publicProfile,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+  try {
+    const publicRef = doc(db, "publicProfiles", currentUser.uid);
+    const publicSnapshot = await getDoc(publicRef);
+    const publicProfile = {
+      uid: currentUser.uid,
+      username: loadedProfile.username || "Lecteur KOVA",
+      bio: loadedProfile.bio || "",
+      photoURL: loadedProfile.photoURL || "",
+      bannerURL: loadedProfile.bannerURL || "",
+    };
+    if (!publicSnapshot.exists()) {
+      await setDoc(publicRef, {
+        ...publicProfile,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
+  } catch {
+    // Public profile rules must not block sign-in or private library access.
+    // Creation is retried at the next sign-in.
   }
   return loadedProfile;
 }
