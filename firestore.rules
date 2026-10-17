@@ -27,8 +27,20 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly([
             'id', 'provider', 'kind', 'title', 'alternateTitle',
             'description', 'cover', 'year', 'status', 'ageRating',
-            'originalLanguage', 'subtype', 'sourceUrl', 'chapters', 'libraryStatus', 'updatedAt'
+            'originalLanguage', 'subtype', 'sourceUrl', 'chapters',
+            'anilistId', 'anilistUrl', 'anilistTitle', 'anilistScore', 'anilistGenres',
+            'libraryStatus', 'updatedAt'
           ])
+          && (!request.resource.data.keys().hasAny(['anilistId'])
+            || (request.resource.data.anilistId is int && request.resource.data.anilistId > 0))
+          && (!request.resource.data.keys().hasAny(['anilistUrl'])
+            || (request.resource.data.anilistUrl is string && request.resource.data.anilistUrl.size() <= 300))
+          && (!request.resource.data.keys().hasAny(['anilistTitle'])
+            || (request.resource.data.anilistTitle is string && request.resource.data.anilistTitle.size() <= 200))
+          && (!request.resource.data.keys().hasAny(['anilistScore'])
+            || (request.resource.data.anilistScore is int && request.resource.data.anilistScore >= 0 && request.resource.data.anilistScore <= 100))
+          && (!request.resource.data.keys().hasAny(['anilistGenres'])
+            || (request.resource.data.anilistGenres is list && request.resource.data.anilistGenres.size() <= 5))
           && request.resource.data.id is string
           && request.resource.data.id.size() <= 160
           && request.resource.data.title is string
