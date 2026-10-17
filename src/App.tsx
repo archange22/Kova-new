@@ -42,7 +42,7 @@ import {
   X,
 } from "lucide-react";
 import { auth, db } from "./lib/firebase";
-import { fetchCatalog, fetchMangaDexChapters, fetchMangaDexChapterPages } from "./lib/catalog";
+import { fetchCatalog, fetchDemoChapters, fetchDemoChapterPages } from "./lib/catalog";
 import type { CatalogItem, CatalogKind, CatalogPage } from "./lib/catalog";
 import CatalogPulse from "./components/CatalogPulse";
 
@@ -340,7 +340,7 @@ export default function App() {
         const librarySnapshot = await getDocs(collection(db, "users", currentUser.uid, "library"));
         const entries = librarySnapshot.docs
           .map((entry) => entry.data() as LibraryEntry)
-          .filter((entry) => (entry.provider === "local" || entry.provider === "mangadex") && (entry.kind === "manga" || entry.kind === "manhwa"));
+          .filter((entry) => entry.kind === "manga" || entry.kind === "manhwa");
         if (alive) setLibrary(entries.sort((a, b) => a.title.localeCompare(b.title)));
       } catch (error) {
         if (alive) {
@@ -582,7 +582,7 @@ export default function App() {
     }
 
     try {
-      const page = await fetchMangaDexChapters(item.id);
+      const page = await fetchDemoChapters(item.id);
       if (requestId !== chapterListRequestId.current) return;
       setSelectedItem((current) => current?.id === item.id ? { ...current, chapters: page.chapters } : current);
       setChapterPageOffset(page.nextOffset);
@@ -610,7 +610,7 @@ export default function App() {
     setChapterPageLoading(true);
     setChapterListError("");
     try {
-      const page = await fetchMangaDexChapters(item.id, chapterPageOffset);
+      const page = await fetchDemoChapters(item.id, chapterPageOffset);
       if (requestId !== chapterListRequestId.current) return;
       const additions = page.chapters.filter((chapter) => {
         const number = chapter.title.match(/^Chapitre ([^ ·]+)/)?.[1];
@@ -649,7 +649,7 @@ export default function App() {
     setMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
     try {
-      const pages = await fetchMangaDexChapterPages(chapterId, readerQuality);
+      const pages = await fetchDemoChapterPages(chapterId, readerQuality);
       if (requestId !== readerPagesRequestId.current) return;
       setReaderChapterPages(pages);
     } catch (error) {
@@ -668,7 +668,7 @@ export default function App() {
     setReaderLoading(true);
     setReaderError("");
     try {
-      const pages = await fetchMangaDexChapterPages(chapterId, nextQuality);
+      const pages = await fetchDemoChapterPages(chapterId, nextQuality);
       if (requestId !== readerPagesRequestId.current) return;
       setReaderChapterPages(pages);
     } catch (error) {
