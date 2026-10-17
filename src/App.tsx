@@ -14,9 +14,11 @@ import {
   doc,
   getDoc,
   getDocs,
+  query,
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
 } from "firebase/firestore";
 import {
   ArrowDownRight,
@@ -26,10 +28,13 @@ import {
   Compass,
   Heart,
   LibraryBig,
+  LifeBuoy,
   LogIn,
   LogOut,
   Menu,
+  MessageSquareText,
   Search,
+  Send,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -37,8 +42,7 @@ import {
   X,
 } from "lucide-react";
 import { auth, db } from "./lib/firebase";
-import { fetchCatalog, fetchMangaDexChapters, fetchMangaDexChapterPages } from "./lib/catalog";
-import { enrichWithAniList, fetchAniListUserEntries, saveAniListEntryStatus } from "./lib/anilist";
+import { fetchCatalog, fetchDemoChapters, fetchDemoChapterPages } from "./lib/catalog";
 import type { CatalogItem, CatalogKind, CatalogPage } from "./lib/catalog";
 import CatalogPulse from "./components/CatalogPulse";
 
@@ -53,7 +57,80 @@ type Profile = {
 type LibraryStatus = "to_read" | "reading" | "completed" | "paused" | "dropped";
 type LibraryEntry = CatalogItem & { libraryStatus: LibraryStatus };
 
-type Screen = "home" | "explore" | "library" | "detail" | "login" | "reader";
+type SupportStatus = "open" | "in_progress" | "resolved" | "closed";
+type SupportCategory = "bug" | "account" | "reading" | "catalog" | "suggestion" | "other";
+type SupportMessage = {
+  id: string;
+  authorUid: string;
+  authorName: string;
+  authorRole: "user" | "support";
+  body: string;
+  createdAt?: { toMillis?: () => number };
+};
+type SupportTicket = {
+  id: string;
+  uid: string;
+  username: string;
+  email: string;
+  subject: string;
+  category: SupportCategory;
+  status: SupportStatus;
+  lastMessagePreview: string;
+  createdAt?: { toMillis?: () => number };
+  updatedAt?: { toMillis?: () => number };
+};
+
+const SUPPORT_ADMIN_UIDS = new Set([
+  "TIat7e3WQyXIk9HyLdjPxsfZ6R92",
+  "B23E8GVKHIUnzgdK5YScoiZzsnG3",
+]);
+
+function isSupportAdmin(uid?: string | null) {
+  return Boolean(uid && SUPPORT_ADMIN_UIDS.has(uid));
+}
+
+function timestampMillis(value?: { toMillis?: () => number } | null) {
+  return value && typeof value.toMillis === "function" ? value.toMillis() : 0;
+}
+
+function supportStatusLabel(status: SupportStatus) {
+  const labels: Record<SupportStatus, string> = {
+    open: "Ouvert",
+    in_progress: "En cours",
+    resolved: "Résolu",
+    closed: "Fermé",
+  };
+  return labels[status];
+}
+
+function supportCategoryLabel(category: SupportCategory) {
+  const labels: Record<SupportCategory, string> = {
+    bug: "Bug / problème technique",
+    account: "Compte et profil",
+    reading: "Lecteur / chapitres",
+    catalog: "Catalogue",
+    suggestion: "Suggestion",
+    other: "Autre demande",
+  };
+  return labels[category];
+}
+
+type Screen = "home" | "explore" | "library" | "reader";
+
+const reservedRoutes = new Set(["connexion", "bibliotheque", "explorer", "chapitre", "support"]);
+
+function slugify(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function getInitialSearch() {
+  const parts = window.location.pathname.split("/").filter(Boolean);
+  const candidate = parts[0] === "manga" ? parts[1] : parts[0];
+  return candidate && !reservedRoutes.has(candidate) && parts[0] !== "connexion"
+    ? decodeURIComponent(candidate).replace(/-/g, " ")
+    : "";
+}
 
 const kindOptions: Array<{ value: CatalogKind; label: string }> = [
   { value: "all", label: "Tout" },
@@ -110,15 +187,6 @@ function validHttpUrl(value: string) {
   }
 }
 
-function slugifyTitle(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "manga";
-}
-function titlePath(item: CatalogItem) { return "/" + slugifyTitle(item.title); }
-function chapterPath(item: CatalogItem, chapterId: string) {
-  return titlePath(item) + "/chapitre/" + encodeURIComponent(chapterId);
-}
-
 function MediaCard({
   item,
   saved,
@@ -152,7 +220,7 @@ function MediaCard({
         <span className="media-card-copy">
           <strong className="media-title">{item.title}</strong>
           <span className="media-meta">{item.year ?? "Année inconnue"}{item.status ? ` · ${item.status === "finished" ? "Terminé" : item.status === "current" ? "En cours" : item.status}` : ""}</span>
-          <span className="media-source">{item.anilistId ? "MangaDex · AniList reliés" : "Catalogue MangaDex"}</span>
+          <span className="media-source">{item.anilistId ? "Catalogue de démonstration" : "Catalogue local"}</span>
         </span>
       </button>
       <button
@@ -174,18 +242,12 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile>({});
   const [loadingAuth, setLoadingAuth] = useState(true);
-  const [screen, setScreen] = useState<Screen>(() => {
-    const path = window.location.pathname;
-    if (path === "/explorer") return "explore";
-    if (path === "/bibliotheque") return "library";
-    if (path === "/connexion") return "login";
-    return "home";
-  });
+  const [screen, setScreen] = useState<Screen>(() => window.location.pathname === "/bibliotheque" ? "library" : window.location.pathname === "/explorer" ? "explore" : "home");
   const [routePath, setRoutePath] = useState(() => window.location.pathname);
-  const lastResolvedPath = useRef("");
+  const appliedRouteRef = useRef("");
   const [readerReturnScreen, setReaderReturnScreen] = useState<Exclude<Screen, "reader">>("explore");
   const [selectedKind, setSelectedKind] = useState<CatalogKind>("all");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(getInitialSearch);
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -212,6 +274,18 @@ export default function App() {
   const [authOpen, setAuthOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [supportLoading, setSupportLoading] = useState(false);
+  const [supportBusy, setSupportBusy] = useState(false);
+  const [supportError, setSupportError] = useState("");
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
+  const [supportTicketId, setSupportTicketId] = useState("");
+  const [supportMessages, setSupportMessages] = useState<SupportMessage[]>([]);
+  const [supportSubject, setSupportSubject] = useState("");
+  const [supportCategory, setSupportCategory] = useState<SupportCategory>("bug");
+  const [supportFirstMessage, setSupportFirstMessage] = useState("");
+  const [supportReply, setSupportReply] = useState("");
+  const [supportStatusBusy, setSupportStatusBusy] = useState(false);
   const [authMode, setAuthMode] = useState<"signup" | "login">("signup");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -220,39 +294,6 @@ export default function App() {
   const [profileBusy, setProfileBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
-  const [anilistClientId, setAniListClientId] = useState(() => sessionStorage.getItem("kova-anilist-client-id") || "");
-  const [anilistToken, setAniListToken] = useState("");
-  const [anilistName, setAniListName] = useState("");
-  const [anilistBusy, setAniListBusy] = useState(false);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-    const token = params.get("access_token");
-    const returnedState = params.get("state");
-    const expectedState = sessionStorage.getItem("kova-anilist-oauth-state");
-    if (token && returnedState && expectedState && returnedState === expectedState) {
-      sessionStorage.setItem("kova-anilist-token", token);
-      sessionStorage.removeItem("kova-anilist-oauth-state");
-      setAniListToken(token);
-      window.history.replaceState(null, "", window.location.pathname + window.location.search);
-      void fetchAniListUserEntries(token).then((result) => setAniListName(result.name)).catch(() => {
-        sessionStorage.removeItem("kova-anilist-token");
-        setAniListToken("");
-        setNotice("Connexion AniList refusée. Vérifie l’application AniList et son URL de redirection.");
-      });
-    } else {
-      const savedToken = sessionStorage.getItem("kova-anilist-token");
-      if (savedToken) {
-        setAniListToken(savedToken);
-        void fetchAniListUserEntries(savedToken).then((result) => setAniListName(result.name)).catch(() => {
-          sessionStorage.removeItem("kova-anilist-token");
-          setAniListToken("");
-          setAniListName("");
-        });
-      }
-      if (params.get("error")) setNotice("La connexion AniList a été annulée ou refusée.");
-    }
-  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -264,6 +305,10 @@ export default function App() {
       if (!currentUser) {
         setProfile({});
         setLibrary([]);
+        setSupportTickets([]);
+        setSupportTicketId("");
+        setSupportMessages([]);
+        setSupportOpen(false);
         setLoadingAuth(false);
         return;
       }
@@ -295,7 +340,7 @@ export default function App() {
         const librarySnapshot = await getDocs(collection(db, "users", currentUser.uid, "library"));
         const entries = librarySnapshot.docs
           .map((entry) => entry.data() as LibraryEntry)
-          .filter((entry) => entry.provider === "mangadex" && (entry.kind === "manga" || entry.kind === "manhwa"));
+          .filter((entry) => entry.kind === "manga" || entry.kind === "manhwa");
         if (alive) setLibrary(entries.sort((a, b) => a.title.localeCompare(b.title)));
       } catch (error) {
         if (alive) {
@@ -323,7 +368,7 @@ export default function App() {
       setCatalogError("");
       try {
         const page: CatalogPage = await fetchCatalog(selectedKind, query, 0, controller.signal);
-        const enrichedItems = await enrichWithAniList(page.items, controller.signal);
+        const enrichedItems = await page.items;
         if (!alive) return;
         setItems(enrichedItems);
         setOffset(page.nextOffset);
@@ -350,117 +395,18 @@ export default function App() {
       if (replace) window.history.replaceState(null, "", path);
       else window.history.pushState(null, "", path);
     }
-    lastResolvedPath.current = path;
     setRoutePath(path);
   }
 
-  useEffect(() => {
-    const handlePopState = () => {
-      lastResolvedPath.current = "";
-      setRoutePath(window.location.pathname);
-      setAuthOpen(false);
-      setProfileOpen(false);
-      setSettingsOpen(false);
-      setSelectedItem(null);
-      setReaderOpen(false);
-      setNotice("");
-    };
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
-
-  useEffect(() => {
-    const path = "/" + routePath.split("/").filter(Boolean).join("/");
-    if (lastResolvedPath.current === path) return;
-    if (path === "/") {
-      lastResolvedPath.current = path;
-      setScreen("home"); setSelectedItem(null); setReaderOpen(false); setAuthOpen(false); return;
-    }
-    if (path === "/explorer") {
-      lastResolvedPath.current = path;
-      setScreen("explore"); setSelectedItem(null); setReaderOpen(false); setAuthOpen(false); return;
-    }
-    if (path === "/bibliotheque") {
-      lastResolvedPath.current = path;
-      setScreen("library"); setSelectedItem(null); setReaderOpen(false); setAuthOpen(false); return;
-    }
-    if (path === "/connexion") {
-      lastResolvedPath.current = path;
-      setScreen("login"); setAuthOpen(false); return;
-    }
-    const segments = path.split("/").filter(Boolean);
-    const chapterIndex = segments.indexOf("chapitre");
-    const slug = segments[0];
-    const chapterId = chapterIndex >= 0 ? decodeURIComponent(segments[chapterIndex + 1] || "") : "";
-    if (!slug || slug === "lecteur") { lastResolvedPath.current = path; setScreen("home"); navigatePath("/", true); return; }
-    let alive = true;
-    const controller = new AbortController();
-    const findRouteTitle = async () => {
-      try {
-        const searchText = slug.replace(/-/g, " ");
-        let result = items.find((candidate) => slugifyTitle(candidate.title) === slug);
-        if (!result) {
-          const page = await fetchCatalog("all", searchText, 0, controller.signal);
-          result = page.items.find((candidate) => slugifyTitle(candidate.title) === slug) || page.items[0];
-        }
-        if (!alive) return;
-        if (!result) {
-          lastResolvedPath.current = path;
-          setScreen("explore"); setQuery(searchText);
-          setNotice("Ce manga n’a pas été trouvé. Vérifie le titre ou cherche-le dans le catalogue.");
-          return;
-        }
-        const enriched = await enrichWithAniList([result], controller.signal);
-        if (!alive) return;
-        lastResolvedPath.current = path;
-        const detailed = await openTitle(enriched[0] || result, { updateRoute: false });
-        if (!alive || !chapterId) return;
-        let chapters = detailed.chapters ?? [];
-        let nextOffset = chapters.length;
-        let hasMoreChapters = chapters.length >= 100;
-        let chapter = chapters.find((entry) => entry.mangaDexChapterId === chapterId);
-        let paginationOffset = 100;
-        while (!chapter && hasMoreChapters && paginationOffset <= 1000 && alive) {
-          const nextPage = await fetchMangaDexChapters(detailed.id, paginationOffset);
-          chapters = [...chapters, ...nextPage.chapters];
-          chapter = nextPage.chapters.find((entry) => entry.mangaDexChapterId === chapterId);
-          nextOffset = nextPage.nextOffset;
-          hasMoreChapters = nextPage.hasMore;
-          paginationOffset = nextPage.nextOffset;
-        }
-        if (!alive) return;
-        setSelectedItem({ ...detailed, chapters });
-        setChapterPageOffset(nextOffset);
-        setChapterPageHasMore(hasMoreChapters);
-        if (chapter) {
-          await openMangaDexChapter(chapter.mangaDexChapterId, chapter.title, { updateRoute: false, returnScreen: "detail" });
-        } else {
-          setScreen("detail");
-          setNotice("Le manga est ouvert, mais ce chapitre n’apparaît pas dans les chapitres actuellement accessibles.");
-        }
-      } catch (error) {
-        if (!alive || (error instanceof DOMException && error.name === "AbortError")) return;
-        lastResolvedPath.current = path;
-        setScreen("explore");
-        setNotice(error instanceof Error ? error.message : "Impossible d’ouvrir cette adresse KOVA.");
-      }
-    };
-    void findRouteTitle();
-    return () => { alive = false; controller.abort(); };
-  }, [routePath]);
-
   function goTo(nextScreen: Screen) {
     setScreen(nextScreen);
-    if (nextScreen !== "reader" && nextScreen !== "detail" && nextScreen !== "login") {
+    if (nextScreen !== "reader") {
       setSelectedItem(null);
       setReaderOpen(false);
     }
-    if (nextScreen === "login") { setAuthMode("login"); setAuthOpen(false); }
     const paths: Record<Screen, string> = {
       home: "/", explore: "/explorer", library: "/bibliotheque",
-      detail: selectedItem ? titlePath(selectedItem) : "/",
-      login: "/connexion",
-      reader: selectedItem && readerChapterId ? chapterPath(selectedItem, readerChapterId) : "/",
+      reader: selectedItem ? "/" + slugify(selectedItem.title) + "/chapitre/" + encodeURIComponent(readerChapterId) : "/",
     };
     navigatePath(paths[nextScreen]);
     setMenuOpen(false);
@@ -470,7 +416,6 @@ export default function App() {
   function chooseKind(kind: CatalogKind) {
     setSelectedKind(kind);
     setScreen("explore");
-    navigatePath("/explorer");
     setMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -499,7 +444,7 @@ export default function App() {
       }
       setPassword("");
       setAuthOpen(false);
-      if (screen === "login") goTo("home");
+      if (routePath === "/connexion") navigatePath("/", true);
     } catch (error) {
       setNotice(friendlyError(error));
     } finally {
@@ -517,86 +462,10 @@ export default function App() {
     }
   }
 
-  function connectAniList() {
-    const clientId = anilistClientId.trim();
-    if (!clientId) {
-      setNotice("Ajoute d’abord le Client ID de ton application AniList.");
-      return;
-    }
-    sessionStorage.setItem("kova-anilist-client-id", clientId);
-    const state = crypto.randomUUID();
-    sessionStorage.setItem("kova-anilist-oauth-state", state);
-    const redirectUri = window.location.origin + "/";
-    const url = new URL("https://anilist.co/api/v2/oauth/authorize");
-    url.searchParams.set("client_id", clientId);
-    url.searchParams.set("response_type", "token");
-    url.searchParams.set("redirect_uri", redirectUri);
-    url.searchParams.set("state", state);
-    window.location.assign(url.toString());
-  }
-
-  function disconnectAniList() {
-    sessionStorage.removeItem("kova-anilist-token");
-    sessionStorage.removeItem("kova-anilist-oauth-state");
-    setAniListToken("");
-    setAniListName("");
-    setNotice("Compte AniList déconnecté de cette session.");
-  }
-
-  async function syncAniList() {
-    if (!user || !anilistToken) return;
-    setAniListBusy(true);
-    setNotice("");
-    try {
-      const result = await fetchAniListUserEntries(anilistToken);
-      setAniListName(result.name);
-      const remoteById = new Map(result.entries.map((entry) => [entry.mediaId, entry]));
-      const statusToKova: Record<string, LibraryStatus> = {
-        CURRENT: "reading", COMPLETED: "completed", PAUSED: "paused",
-        DROPPED: "dropped", PLANNING: "to_read", REPEATING: "reading",
-      };
-      const statusToAniList: Record<LibraryStatus, "CURRENT" | "COMPLETED" | "PAUSED" | "DROPPED" | "PLANNING"> = {
-        reading: "CURRENT", completed: "COMPLETED", paused: "PAUSED",
-        dropped: "DROPPED", to_read: "PLANNING",
-      };
-      let updated = 0;
-      let uploaded = 0;
-      const nextLibrary = [...library];
-      for (let index = 0; index < nextLibrary.length; index += 1) {
-        const entry = nextLibrary[index];
-        if (!entry.anilistId) continue;
-        const remote = remoteById.get(entry.anilistId);
-        if (remote) {
-          const nextStatus = statusToKova[remote.status] || entry.libraryStatus;
-          if (nextStatus !== entry.libraryStatus) {
-            await setDoc(doc(db, "users", user.uid, "library", getLibraryDocId(entry)), {
-              libraryStatus: nextStatus,
-              anilistId: entry.anilistId,
-              anilistUrl: entry.anilistUrl || remote.media.siteUrl || "https://anilist.co/manga/" + entry.anilistId,
-              updatedAt: serverTimestamp(),
-            }, { merge: true });
-            nextLibrary[index] = { ...entry, libraryStatus: nextStatus };
-            updated += 1;
-          }
-        } else {
-          await saveAniListEntryStatus(anilistToken, entry.anilistId, statusToAniList[entry.libraryStatus]);
-          uploaded += 1;
-        }
-      }
-      setLibrary(nextLibrary);
-      setNotice("Synchronisation terminée avec AniList : " + updated + " statut(s) importé(s), " + uploaded + " titre(s) envoyé(s). Seuls les titres liés à AniList sont synchronisés.");
-    } catch (error) {
-      setNotice(error instanceof Error ? "Synchronisation AniList impossible : " + error.message : "Synchronisation AniList impossible.");
-      if (String(error).toLowerCase().includes("unauthorized") || String(error).includes("401")) disconnectAniList();
-    } finally {
-      setAniListBusy(false);
-    }
-  }
-
   async function saveToLibrary(item: CatalogItem) {
     if (!user) {
-      setAuthMode("login");
-      goTo("login");
+      setAuthMode("signup");
+      setAuthOpen(true);
       setNotice("Connecte-toi pour synchroniser ta bibliothèque.");
       return;
     }
@@ -690,12 +559,11 @@ export default function App() {
     }
   }
 
-  async function openTitle(item: CatalogItem, options: { updateRoute?: boolean } = {}): Promise<CatalogItem> {
+  async function openTitle(item: CatalogItem) {
+    navigatePath("/" + slugify(item.title));
     const requestId = ++chapterListRequestId.current;
     readerPagesRequestId.current += 1;
     setSelectedItem(item);
-    setScreen("detail");
-    if (options.updateRoute !== false) navigatePath(titlePath(item));
     setReaderOpen(false);
     setChapterListError("");
     setChapterListLoading(!item.chapters?.length);
@@ -707,25 +575,24 @@ export default function App() {
     setReaderChapterPages([]);
     setReaderChapterId("");
     setReaderChapterTitle("");
+
     if (item.chapters?.length) {
       setChapterListLoading(false);
-      return item;
+      return;
     }
+
     try {
-      const page = await fetchMangaDexChapters(item.id);
-      if (requestId !== chapterListRequestId.current) return item;
-      const detailedItem = { ...item, chapters: page.chapters };
-      setSelectedItem((current) => current?.id === item.id ? detailedItem : current);
+      const page = await fetchDemoChapters(item.id);
+      if (requestId !== chapterListRequestId.current) return;
+      setSelectedItem((current) => current?.id === item.id ? { ...current, chapters: page.chapters } : current);
       setChapterPageOffset(page.nextOffset);
       setChapterPageHasMore(page.hasMore);
       if (page.chapters.length === 0 && !page.hasMore) {
-        setChapterListError("Aucun chapitre lisible en français ou en anglais n'est disponible dans MangaDex pour ce titre.");
+        setChapterListError("Aucun chapitre de démonstration n’est disponible pour ce titre pour le moment. Les sources de contenu sont volontairement désactivées pendant l’amélioration de KOVA.");
       }
-      return detailedItem;
     } catch (error) {
-      if (requestId !== chapterListRequestId.current) return item;
-      setChapterListError(error instanceof Error ? error.message : "Impossible de récupérer les chapitres MangaDex.");
-      return item;
+      if (requestId !== chapterListRequestId.current) return;
+      setChapterListError(error instanceof Error ? error.message : "Impossible de charger les chapitres de démonstration. Réessaie dans un instant.");
     } finally {
       if (requestId === chapterListRequestId.current) setChapterListLoading(false);
     }
@@ -743,7 +610,7 @@ export default function App() {
     setChapterPageLoading(true);
     setChapterListError("");
     try {
-      const page = await fetchMangaDexChapters(item.id, chapterPageOffset);
+      const page = await fetchDemoChapters(item.id, chapterPageOffset);
       if (requestId !== chapterListRequestId.current) return;
       const additions = page.chapters.filter((chapter) => {
         const number = chapter.title.match(/^Chapitre ([^ ·]+)/)?.[1];
@@ -758,7 +625,7 @@ export default function App() {
       setChapterPageHasMore(page.hasMore);
       setChapterVisibleCount((current) => Math.min(merged.length, current + 30));
       if (merged.length === 0 && !page.hasMore) {
-        setChapterListError("Aucun chapitre lisible en français ou en anglais n'est disponible dans MangaDex pour ce titre.");
+        setChapterListError("Aucun chapitre de démonstration n’est disponible pour ce titre pour le moment. Les sources de contenu sont volontairement désactivées pendant l’amélioration de KOVA.");
       }
     } catch (error) {
       if (requestId !== chapterListRequestId.current) return;
@@ -768,24 +635,21 @@ export default function App() {
     }
   }
 
-  async function openMangaDexChapter(
-    chapterId: string,
-    chapterTitle: string,
-    options: { updateRoute?: boolean; returnScreen?: Exclude<Screen, "reader"> } = {},
-  ) {
+  async function openDemoChapter(chapterId: string, chapterTitle: string) {
     const requestId = ++readerPagesRequestId.current;
     setReaderLoading(true);
     setReaderError("");
     setReaderChapterPages([]);
     setReaderChapterId(chapterId);
     setReaderChapterTitle(chapterTitle);
-    if (screen !== "reader") setReaderReturnScreen(options.returnScreen ?? screen);
+    if (screen !== "reader") setReaderReturnScreen(screen);
     setScreen("reader");
-    if (selectedItem && options.updateRoute !== false) navigatePath(chapterPath(selectedItem, chapterId));
+    if (selectedItem) navigatePath("/" + slugify(selectedItem.title) + "/chapitre/" + encodeURIComponent(chapterId));
+    else navigatePath("/chapitre/" + encodeURIComponent(chapterId));
     setMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
     try {
-      const pages = await fetchMangaDexChapterPages(chapterId, readerQuality);
+      const pages = await fetchDemoChapterPages(chapterId, readerQuality);
       if (requestId !== readerPagesRequestId.current) return;
       setReaderChapterPages(pages);
     } catch (error) {
@@ -804,7 +668,7 @@ export default function App() {
     setReaderLoading(true);
     setReaderError("");
     try {
-      const pages = await fetchMangaDexChapterPages(chapterId, nextQuality);
+      const pages = await fetchDemoChapterPages(chapterId, nextQuality);
       if (requestId !== readerPagesRequestId.current) return;
       setReaderChapterPages(pages);
     } catch (error) {
@@ -821,7 +685,7 @@ export default function App() {
     setLoadingMore(true);
     try {
       const page = await fetchCatalog(selectedKind, query, offset);
-      const enrichedItems = await enrichWithAniList(page.items);
+      const enrichedItems = await page.items;
       if (requestId !== catalogRequestId.current) return;
       setItems((current) => {
         const ids = new Set(current.map((item) => item.id));
@@ -837,6 +701,234 @@ export default function App() {
     }
   }
 
+  async function loadSupportMessages(ticketId: string) {
+    if (!user) return;
+    try {
+      const snapshot = await getDocs(collection(db, "supportTickets", ticketId, "messages"));
+      const messages = snapshot.docs
+        .map((entry) => ({ id: entry.id, ...entry.data() }) as SupportMessage)
+        .sort((a, b) => timestampMillis(a.createdAt) - timestampMillis(b.createdAt));
+      setSupportMessages(messages);
+    } catch (error) {
+      setSupportError(friendlyError(error));
+      setSupportMessages([]);
+    }
+  }
+
+  async function loadSupportTickets(preferredTicketId?: string) {
+    if (!user) return;
+    setSupportLoading(true);
+    setSupportError("");
+    try {
+      const ticketCollection = collection(db, "supportTickets");
+      const snapshot = isSupportAdmin(user.uid)
+        ? await getDocs(ticketCollection)
+        : await getDocs(query(ticketCollection, where("uid", "==", user.uid)));
+      const tickets = snapshot.docs
+        .map((entry) => ({ id: entry.id, ...entry.data() }) as SupportTicket)
+        .sort((a, b) => timestampMillis(b.updatedAt) - timestampMillis(a.updatedAt));
+      setSupportTickets(tickets);
+      const nextTicketId = preferredTicketId || supportTicketId;
+      if (nextTicketId && tickets.some((ticket) => ticket.id === nextTicketId)) {
+        setSupportTicketId(nextTicketId);
+        await loadSupportMessages(nextTicketId);
+      } else {
+        setSupportTicketId("");
+        setSupportMessages([]);
+      }
+    } catch (error) {
+      setSupportError(friendlyError(error));
+    } finally {
+      setSupportLoading(false);
+    }
+  }
+
+  function openSupport() {
+    setMenuOpen(false);
+    navigatePath("/support");
+    setSupportOpen(Boolean(user));
+    setSupportError("");
+    if (!user) {
+      setAuthMode("login");
+      setAuthOpen(true);
+      setNotice("Connecte-toi pour créer un ticket et suivre les réponses du support.");
+      return;
+    }
+    setAuthOpen(false);
+    void loadSupportTickets();
+  }
+
+  async function createSupportTicket(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!user) {
+      setAuthOpen(true);
+      setAuthMode("login");
+      return;
+    }
+    const subject = supportSubject.trim();
+    const body = supportFirstMessage.trim();
+    if (subject.length < 5 || body.length < 10) {
+      setSupportError("Ajoute un sujet (5 caractères minimum) et décris le problème en au moins 10 caractères.");
+      return;
+    }
+    setSupportBusy(true);
+    setSupportError("");
+    try {
+      const ticketRef = doc(collection(db, "supportTickets"));
+      await setDoc(ticketRef, {
+        uid: user.uid,
+        username: displayName.slice(0, 60),
+        email: (user.email || "").slice(0, 254),
+        subject: subject.slice(0, 120),
+        category: supportCategory,
+        status: "open",
+        lastMessagePreview: body.slice(0, 180),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      const messageRef = doc(collection(db, "supportTickets", ticketRef.id, "messages"));
+      await setDoc(messageRef, {
+        authorUid: user.uid,
+        authorName: displayName.slice(0, 60),
+        authorRole: isSupportAdmin(user.uid) ? "support" : "user",
+        body: body.slice(0, 4000),
+        createdAt: serverTimestamp(),
+      });
+      setSupportSubject("");
+      setSupportCategory("bug");
+      setSupportFirstMessage("");
+      setSupportTicketId(ticketRef.id);
+      setNotice("Ticket créé. Tu peux suivre ici les prochaines réponses.");
+      await loadSupportTickets(ticketRef.id);
+    } catch (error) {
+      setSupportError(friendlyError(error));
+    } finally {
+      setSupportBusy(false);
+    }
+  }
+
+  async function sendSupportReply(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!user || !supportTicketId) return;
+    const body = supportReply.trim();
+    if (body.length < 2) {
+      setSupportError("Écris un message avant de l’envoyer.");
+      return;
+    }
+    const ticket = supportTickets.find((entry) => entry.id === supportTicketId);
+    if (!ticket) return;
+    setSupportBusy(true);
+    setSupportError("");
+    try {
+      const messageRef = doc(collection(db, "supportTickets", supportTicketId, "messages"));
+      await setDoc(messageRef, {
+        authorUid: user.uid,
+        authorName: isSupportAdmin(user.uid) ? "Support KOVA" : displayName.slice(0, 60),
+        authorRole: isSupportAdmin(user.uid) ? "support" : "user",
+        body: body.slice(0, 4000),
+        createdAt: serverTimestamp(),
+      });
+      const nextStatus: SupportStatus = isSupportAdmin(user.uid)
+        ? ticket.status === "open" ? "in_progress" : ticket.status
+        : ticket.status === "resolved" || ticket.status === "closed" ? "open" : ticket.status;
+      await updateDoc(doc(db, "supportTickets", supportTicketId), {
+        lastMessagePreview: body.slice(0, 180),
+        lastMessageAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        status: nextStatus,
+      });
+      setSupportReply("");
+      await loadSupportTickets(supportTicketId);
+    } catch (error) {
+      setSupportError(friendlyError(error));
+      await loadSupportMessages(supportTicketId);
+    } finally {
+      setSupportBusy(false);
+    }
+  }
+
+  async function changeSupportStatus(status: SupportStatus) {
+    if (!user || !supportTicketId) return;
+    setSupportStatusBusy(true);
+    setSupportError("");
+    try {
+      await updateDoc(doc(db, "supportTickets", supportTicketId), {
+        status,
+        updatedAt: serverTimestamp(),
+      });
+      await loadSupportTickets(supportTicketId);
+    } catch (error) {
+      setSupportError(friendlyError(error));
+    } finally {
+      setSupportStatusBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    const onPopState = () => setRoutePath(window.location.pathname);
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  useEffect(() => {
+    const path = (routePath.length > 1 && routePath.endsWith("/") ? routePath.slice(0, -1) : routePath) || "/";
+    if (path === "/connexion") {
+      if (appliedRouteRef.current !== path) {
+        setAuthMode("login");
+        setAuthOpen(true);
+        setScreen("home");
+        appliedRouteRef.current = path;
+      }
+      return;
+    }
+    if (path === "/support") {
+      setScreen("home");
+      if (!user) {
+        setSupportOpen(false);
+        setAuthMode("login");
+        setAuthOpen(true);
+      } else if (appliedRouteRef.current !== path || !supportOpen) {
+        setAuthOpen(false);
+        setSupportOpen(true);
+        void loadSupportTickets();
+      }
+      appliedRouteRef.current = path;
+      return;
+    }
+    if (path === "/") {
+      appliedRouteRef.current = path;
+      setAuthOpen(false);
+      setSupportOpen(false);
+      return;
+    }
+    if (path === "/bibliotheque" || path === "/explorer") {
+      setScreen(path === "/bibliotheque" ? "library" : "explore");
+      setAuthOpen(false);
+      setSupportOpen(false);
+      appliedRouteRef.current = path;
+      return;
+    }
+    const parts = path.split("/").filter(Boolean);
+    const chapterRoute = parts.length >= 3 && parts[1] === "chapitre";
+    const titleSlug = parts[0] === "manga" ? parts[1] : parts[0];
+    if (!titleSlug || reservedRoutes.has(titleSlug)) return;
+    const item = items.find((entry) => slugify(entry.title) === decodeURIComponent(titleSlug));
+    if (!item) return;
+    const routeKey = path;
+    if (appliedRouteRef.current === routeKey) return;
+    appliedRouteRef.current = routeKey;
+    setAuthOpen(false);
+    if (chapterRoute) {
+      void openTitle(item);
+      const chapterId = decodeURIComponent(parts[2]);
+      void openDemoChapter(chapterId, "Chapitre");
+      navigatePath(routeKey, true);
+    } else {
+      void openTitle(item);
+      setScreen("explore");
+    }
+  }, [routePath, items, user, supportOpen]);
+
   const displayName = profile.username || user?.displayName || user?.email?.split("@")[0] || "Lecteur";
   const savedIds = new Set(library.map((entry) => entry.id));
   const recentItems = items.slice(0, 8);
@@ -848,16 +940,17 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <button className="mobile-menu icon-button" aria-label="Ouvrir le menu" onClick={() => setMenuOpen((open) => !open)}>
+        <button className="mobile-menu icon-button" aria-label={menuOpen ? "Fermer le menu" : "Ouvrir le menu"} aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen((open) => !open)}>
           {menuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
         <button className="brand" onClick={() => goTo("home")} aria-label="KOVA accueil">
           <span className="brand-mark">K</span><span>KOVA</span><span className="brand-dot">.</span>
         </button>
-        <nav className={menuOpen ? "nav-links nav-open" : "nav-links"}>
-          <button className={screen === "home" ? "nav-link active" : "nav-link"} onClick={() => goTo("home")}><Compass size={16} /> Accueil</button>
-          <button className={screen === "explore" ? "nav-link active" : "nav-link"} onClick={() => goTo("explore")}><Search size={16} /> Explorer</button>
-          <button className={screen === "library" ? "nav-link active" : "nav-link"} onClick={() => goTo("library")}><LibraryBig size={16} /> Bibliothèque</button>
+        <nav id="primary-navigation" aria-label="Navigation principale" className={menuOpen ? "nav-links nav-open" : "nav-links"}>
+          <button className={screen === "home" ? "nav-link active" : "nav-link"} onClick={() => { setMenuOpen(false); goTo("home"); }}><Compass size={16} /> Accueil</button>
+          <button className={screen === "explore" ? "nav-link active" : "nav-link"} onClick={() => { setMenuOpen(false); goTo("explore"); }}><Search size={16} /> Explorer</button>
+          <button className={screen === "library" ? "nav-link active" : "nav-link"} onClick={() => { setMenuOpen(false); goTo("library"); }}><LibraryBig size={16} /> Bibliothèque</button>
+          <button className={supportOpen ? "nav-link active" : "nav-link"} onClick={() => { setMenuOpen(false); openSupport(); }}><LifeBuoy size={16} /> Support / tickets</button>
         </nav>
         <div className="top-actions">
           <button className="icon-button search-button" aria-label="Lancer une recherche" onClick={() => { goTo("explore"); document.getElementById("catalog-search")?.focus(); }}><Search size={19} /></button>
@@ -866,7 +959,7 @@ export default function App() {
               {profile.photoURL ? <img className="avatar" src={profile.photoURL} alt="" /> : <span className="avatar">{displayName.slice(0, 1).toUpperCase()}</span>}
               <span className="profile-name">{displayName}</span>
             </button>
-          ) : <button className="login-link" onClick={() => goTo("login")}><LogIn size={16} /> Connexion</button>}
+          ) : <button className="login-link" onClick={() => { setAuthMode("login"); setAuthOpen(true); navigatePath("/connexion"); }}><LogIn size={16} /> Connexion</button>}
           <button className="icon-button settings-button" aria-label="Ouvrir les réglages" onClick={() => setSettingsOpen(true)}><Settings size={18} /></button>
         </div>
       </header>
@@ -874,35 +967,13 @@ export default function App() {
       {menuOpen && <button className="menu-backdrop" aria-label="Fermer le menu" onClick={() => setMenuOpen(false)} />}
 
       <main>
-        {screen === "login" && (
-          <section className="auth-route-page page-section">
-            <div className="auth-route-card">
-              <span className="section-kicker">KOVA / TON ESPACE</span>
-              <h1>{authMode === "login" ? "Bon retour." : "Bienvenue dans KOVA."}</h1>
-              <p className="auth-route-intro">Connecte-toi pour retrouver ta bibliothèque et reprendre tes lectures sur tous tes appareils.</p>
-              <div className="auth-tabs">
-                <button type="button" className={authMode === "login" ? "selected" : ""} onClick={() => setAuthMode("login")}>Connexion</button>
-                <button type="button" className={authMode === "signup" ? "selected" : ""} onClick={() => setAuthMode("signup")}>Créer un compte</button>
-              </div>
-              <form className="form-stack" onSubmit={handleAuth}>
-                {authMode === "signup" && <label>Pseudonyme<input autoComplete="nickname" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Ton pseudo KOVA" maxLength={30} required /></label>}
-                <label>Adresse e-mail<input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="toi@exemple.com" /></label>
-                <label>Mot de passe<input type="password" autoComplete={authMode === "signup" ? "new-password" : "current-password"} minLength={6} required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="6 caractères minimum" /></label>
-                {notice && <p className="auth-route-notice" role="status">{notice}</p>}
-                <button className="primary-button full-button" type="submit" disabled={busy}>{busy ? "Patiente…" : authMode === "signup" ? "Créer mon compte" : "Me connecter"} <ArrowRight size={17} /></button>
-              </form>
-              <p className="modal-footnote"><ShieldCheck size={14} /> Ton mot de passe est géré par Firebase Authentication.</p>
-            </div>
-          </section>
-        )}
-
         {screen === "home" && (
           <>
             <section className="hero" id="accueil">
               <div className="hero-copy">
                 <span className="eyebrow"><Sparkles size={14} /> TON UNIVERS, TON RYTHME</span>
                 <h1>Chaque page ouvre<br />un <span>nouveau monde.</span></h1>
-                <p>Explore les mangas japonais et les manhwas coréens du catalogue MangaDex, puis lis les chapitres directement ici.</p>
+                <p>Explore les mangas japonais et les manhwas coréens du catalogue local, puis lis les chapitres directement ici.</p>
                 <div className="hero-actions">
                   <button className="primary-button" onClick={() => goTo("explore")}><Compass size={17} /> Explorer le catalogue <ArrowRight size={17} /></button>
                   <button className="quiet-button" onClick={() => goTo("library")}><LibraryBig size={17} /> Ma bibliothèque</button>
@@ -918,8 +989,8 @@ export default function App() {
                   />
                   <button type="submit" aria-label="Rechercher"><ArrowRight size={18} /></button>
                 </form>
-                <div className="hero-tags"><span>MANGA JAPONAIS</span><span>MANHWA CORÉEN</span><span>LECTEUR INTÉGRÉ</span></div>
-                <div className="hero-trust"><ShieldCheck size={15} /> Source : API MangaDex</div>
+                <div className="hero-tags"><span>MANGA JAPONAIS</span><span>MANHWA CORÉEN</span><span>LECTEUR EN DÉMO</span></div>
+                <div className="hero-trust"><ShieldCheck size={15} /> MODE DÉMONSTRATION · SANS API</div>
               </div>
               <div className="hero-art" aria-label="Aperçu du catalogue KOVA">
                 <div className="art-orbit orbit-one" /><div className="art-orbit orbit-two" />
@@ -970,7 +1041,7 @@ export default function App() {
             <div className="explore-heading">
               <span className="section-kicker">LE GRAND CATALOGUE</span>
               <h1>Ton prochain coup de cœur<br /><span>est peut-être ici.</span></h1>
-              <p>Recherche dans le catalogue MangaDex et ouvre les chapitres lisibles directement dans le lecteur KOVA.</p>
+              <p>Teste la recherche, les filtres et les fiches du catalogue local. Les pages externes ne sont pas chargées.</p>
             </div>
             <div className="catalog-toolbar">
               <label className="search-field" htmlFor="catalog-search"><Search size={19} /><input id="catalog-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Titre, univers, mot-clé…" /><kbd>⌕</kbd></label>
@@ -980,7 +1051,7 @@ export default function App() {
             </div>
             <div className="catalog-results-heading">
               <div><h2>{selectedKind === "all" ? "Tout le catalogue" : kindOptions.find((option) => option.value === selectedKind)?.label}</h2><span className="muted-caption">{query ? `Résultats pour « ${query} »` : "Une sélection alimentée par des catalogues publics"}</span></div>
-              <span className="catalog-provider">SOURCE · MANGADEX API</span>
+              <span className="catalog-provider">SOURCE · DONNÉES LOCALES</span>
             </div>
             {catalogLoading ? <LoadingState text="Recherche dans le catalogue…" /> : catalogError ? <ErrorState message={catalogError} onRetry={() => setRefreshIndex((value) => value + 1)} /> : (
               <>
@@ -988,7 +1059,7 @@ export default function App() {
                 {hasMore && <div className="load-more-wrap"><button className="secondary-button" onClick={() => void loadMore()} disabled={loadingMore}>{loadingMore ? "Chargement…" : "Afficher plus de titres"} <ArrowRight size={16} /></button></div>}
               </>
             )}
-            <p className="catalog-note"><ShieldCheck size={16} /> Tout se parcourt depuis KOVA : recherche, fiche, liste de chapitres et lecture intégrée. MangaDex et les groupes de traduction restent crédités.</p>
+            <p className="catalog-note"><ShieldCheck size={16} /> Les données affichées sont fictives et servent à tester la recherche, les fiches, la navigation et la bibliothèque.</p>
           </section>
         )}
 
@@ -1000,25 +1071,12 @@ export default function App() {
             </div>
             {user && (
               <div className="anilist-sync-panel">
-                <div>
-                  <span className="section-kicker">SYNCHRONISATION EXTERNE</span>
-                  <h2>{anilistToken ? "AniList connecté" : "Relier ta bibliothèque AniList"}</h2>
-                  <p>{anilistToken ? "Compte : " + (anilistName || "connecté") + ". Les titres ayant un identifiant AniList peuvent synchroniser leur statut avec KOVA." : "Crée une application AniList, puis renseigne son Client ID. L’URL de redirection à enregistrer est " + window.location.origin + "/."}</p>
-                </div>
-                {!anilistToken ? (
-                  <div className="anilist-connect-controls">
-                    <label>Client ID AniList<input value={anilistClientId} onChange={(event) => setAniListClientId(event.target.value)} placeholder="Client ID de ton application" inputMode="numeric" /></label>
-                    <button className="primary-button" onClick={connectAniList}>Connecter AniList <ArrowRight size={16} /></button>
-                  </div>
-                ) : (
-                  <div className="anilist-connect-controls">
-                    <button className="primary-button" onClick={() => void syncAniList()} disabled={anilistBusy}>{anilistBusy ? "Synchronisation…" : "Synchroniser maintenant"} <ArrowRight size={16} /></button>
-                    <button className="quiet-button" onClick={disconnectAniList}>Déconnecter</button>
-                  </div>
-                )}
-                <small>Le jeton reste dans la session de ce navigateur et n’est pas enregistré dans Firebase.</small>
+              <div>
+                <span className="section-kicker">MODE DÉVELOPPEMENT</span>
+                <h2>Catalogue local de démonstration</h2>
+                <p>Les API de catalogue et de métadonnées sont désactivées. Les titres fictifs servent à tester l’interface, la navigation et la bibliothèque. La connexion Firebase reste active.</p>
               </div>
-            )}
+            </div>
             {!user ? (
               <div className="empty-panel"><span className="empty-icon"><LibraryBig size={26} /></span><h2>Ta bibliothèque t’attend</h2><p>Connecte-toi pour synchroniser tes favoris et suivre l’avancement de tes lectures.</p><button className="primary-button" onClick={() => setAuthOpen(true)}><LogIn size={17} /> Se connecter</button></div>
             ) : library.length === 0 ? (
@@ -1045,10 +1103,10 @@ export default function App() {
         )}
 
         {screen === "reader" && (
-          <section className="full-reader-page" aria-label="Lecteur manga MangaDex">
+          <section className="full-reader-page" aria-label="Lecteur manga catalogue local">
             <div className="reader-page-toolbar">
-              <button className="secondary-button" onClick={() => { setScreen(readerReturnScreen); setReaderOpen(true); if (selectedItem) navigatePath(titlePath(selectedItem)); window.scrollTo({ top: 0, behavior: "smooth" }); }}><ArrowRight className="reader-back-icon" size={16} /> Retour à la fiche</button>
-              <div className="reader-page-title"><strong>{selectedItem?.title ?? "Lecture MangaDex"}</strong><span>{readerChapterTitle}</span></div>
+              <button className="secondary-button" onClick={() => { setScreen(readerReturnScreen); setReaderOpen(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}><ArrowRight className="reader-back-icon" size={16} /> Retour à la fiche</button>
+              <div className="reader-page-title"><strong>{selectedItem?.title ?? "Lecture catalogue local"}</strong><span>{readerChapterTitle}</span></div>
               {readerChapterId && <span className="reader-in-site-label"><ShieldCheck size={15} /> Lecture intégrée dans KOVA</span>}
             </div>
             <div className="reader-page-controls">
@@ -1058,27 +1116,27 @@ export default function App() {
               <span>{readerQuality === "data-saver" ? "Images compressées pour économiser les données mobiles." : "Images d'origine, plus gourmandes en données."}</span>
               {readerChapterPages.length > 0 && <span>{readerChapterPages.length} pages</span>}
             </div>
-            {readerError && <div className="reader-error"><p>{readerError}</p><button className="secondary-button" onClick={() => void openMangaDexChapter(readerChapterId, readerChapterTitle)}>Réessayer</button></div>}
-            {readerLoading && <LoadingState text="MangaDex charge les pages du chapitre…" />}
+            {readerError && <div className="reader-error"><p>{readerError}</p><button className="secondary-button" onClick={() => void openDemoChapter(readerChapterId, readerChapterTitle)}>Réessayer</button></div>}
+            {readerLoading && <LoadingState text="KOVA prépare les pages de démonstration…" />}
             {!readerLoading && readerChapterPages.length > 0 && (
               <div className="mangadex-pages full-reader-pages">
                 {readerChapterPages.map((pageUrl, pageIndex) => <img key={pageUrl} src={pageUrl} alt={"Page " + (pageIndex + 1) + " · " + readerChapterTitle} loading={pageIndex < 2 ? "eager" : "lazy"} />)}
               </div>
             )}
-            {!readerLoading && !readerError && readerChapterPages.length === 0 && <EmptyState title="Aucune page chargée" text="Choisis un chapitre depuis la fiche MangaDex pour commencer." />}
+            {!readerLoading && !readerError && readerChapterPages.length === 0 && <EmptyState title="Aucune page chargée" text="Le lecteur est prêt côté interface, mais les pages de contenu restent désactivées dans cette version de démonstration." />}
             <div className="reader-bottom-navigation">
-              <button className="secondary-button" disabled={readerChapterIndex <= 0 || readerLoading} onClick={() => { const chapter = readerChapters[readerChapterIndex - 1]; if (chapter) void openMangaDexChapter(chapter.mangaDexChapterId, chapter.title); }}>← Chapitre précédent</button>
-              <span>{currentReaderChapter?.scanlationGroup ? "Traduction : " + currentReaderChapter.scanlationGroup : "Source et crédits : MangaDex"}</span>
-              <button className="secondary-button" disabled={readerChapterIndex < 0 || readerChapterIndex >= readerChapters.length - 1 || readerLoading} onClick={() => { const chapter = readerChapters[readerChapterIndex + 1]; if (chapter) void openMangaDexChapter(chapter.mangaDexChapterId, chapter.title); }}>Chapitre suivant →</button>
+              <button className="secondary-button" disabled={readerChapterIndex <= 0 || readerLoading} onClick={() => { const chapter = readerChapters[readerChapterIndex - 1]; if (chapter) void openDemoChapter(chapter.mangaDexChapterId, chapter.title); }}>← Chapitre précédent</button>
+              <span>{currentReaderChapter?.scanlationGroup ? "Traduction : " + currentReaderChapter.scanlationGroup : "Mode démonstration"}</span>
+              <button className="secondary-button" disabled={readerChapterIndex < 0 || readerChapterIndex >= readerChapters.length - 1 || readerLoading} onClick={() => { const chapter = readerChapters[readerChapterIndex + 1]; if (chapter) void openDemoChapter(chapter.mangaDexChapterId, chapter.title); }}>Chapitre suivant →</button>
             </div>
-            <p className="reader-credit">Lecture intégrée dans KOVA grâce à l’API MangaDex. Les traductions appartiennent à leurs groupes respectifs. Les demandes de retrait des groupes doivent être respectées.</p>
+            <p className="reader-credit">Mode développement : aucune page ou source de lecture externe n’est chargée.</p>
           </section>
         )}
 
-        {screen !== "reader" && screen !== "login" && screen !== "detail" && (
+        {screen !== "reader" && (
           <section className="source-section page-section">
-            <div className="source-copy"><span className="section-kicker">SOURCE UNIQUE</span><h2>Manga et manhwa.<br /><span>Propulsés par MangaDex.</span></h2><p>KOVA utilise l'API publique MangaDex pour rechercher les titres et charger les chapitres disponibles. Les groupes de traduction sont crédités dans le lecteur.</p></div>
-            <div className="official-links"><div className="official-reading-note"><span className="official-icon">M</span><span><strong>MangaDex API</strong><small>Catalogue et pages affichés dans KOVA, sans quitter le site</small></span><ShieldCheck size={16} /></div></div>
+            <div className="source-copy"><span className="section-kicker">SOURCE UNIQUE</span><h2>Manga et manhwa.<br /><span>Interface en mode local.</span></h2><p>KOVA affiche des données fictives locales pour tester le catalogue et la navigation. Les chapitres et pages en ligne sont désactivés pendant cette phase.</p></div>
+            <div className="official-links"><div className="official-reading-note"><span className="official-icon">M</span><span><strong>Catalogue local</strong><small>Catalogue et pages affichés dans KOVA, sans quitter le site</small></span><ShieldCheck size={16} /></div></div>
           </section>
         )}
 
@@ -1094,7 +1152,7 @@ export default function App() {
       {notice && <div className="notice-toast" role="status"><span>{notice}</span><button onClick={() => setNotice("")} aria-label="Fermer le message"><X size={16} /></button></div>}
 
       {authOpen && (
-        <Modal title={authMode === "signup" ? "Rejoins KOVA" : "Content de te revoir"} subtitle="Ton espace de lecture, sauvegardé entre tes sessions." onClose={() => setAuthOpen(false)}>
+        <Modal title={authMode === "signup" ? "Rejoins KOVA" : "Content de te revoir"} subtitle="Ton espace de lecture, sauvegardé entre tes sessions." onClose={() => { setAuthOpen(false); navigatePath(routePath === "/connexion" || routePath === "/support" ? "/" : routePath, true); }}>
           <div className="auth-tabs"><button className={authMode === "signup" ? "selected" : ""} onClick={() => { setAuthMode("signup"); setNotice(""); }}>Créer un compte</button><button className={authMode === "login" ? "selected" : ""} onClick={() => { setAuthMode("login"); setNotice(""); }}>Connexion</button></div>
           <form className="form-stack" onSubmit={handleAuth}>
             {authMode === "signup" && <label>Pseudonyme<input autoComplete="nickname" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Ton pseudo KOVA" maxLength={30} /></label>}
@@ -1123,6 +1181,90 @@ export default function App() {
         </Modal>
       )}
 
+      {supportOpen && user && (
+        <Modal title={isSupportAdmin(user.uid) ? "Centre de support KOVA" : "Support & tickets"} subtitle={isSupportAdmin(user.uid) ? "Lis les demandes, réponds aux lecteurs et mets à jour leur statut." : "Une question ou un problème ? Crée un ticket et garde toutes les réponses au même endroit."} onClose={() => { setSupportOpen(false); setSupportTicketId(""); setSupportMessages([]); navigatePath("/", true); }} wide>
+          <div className="support-intro">
+            <span className="support-intro-icon"><LifeBuoy size={23} /></span>
+            <div><strong>{isSupportAdmin(user.uid) ? "Boîte de réception du support" : "On est là pour t’aider"}</strong><p>{isSupportAdmin(user.uid) ? "Les tickets sont triés du plus récemment mis à jour au plus ancien." : "Décris le souci avec assez de détails. Ne partage jamais ton mot de passe."}</p></div>
+            <span className="support-security"><ShieldCheck size={15} /> Privé</span>
+          </div>
+          {supportError && <div className="support-error" role="alert">{supportError}<button onClick={() => setSupportError("")} aria-label="Fermer l’erreur"><X size={14} /></button></div>}
+          <div className="support-layout">
+            <aside className="support-ticket-sidebar">
+              <button className="primary-button support-new-ticket" onClick={() => { setSupportTicketId(""); setSupportMessages([]); setSupportError(""); }}><MessageSquareText size={17} /> Nouveau ticket</button>
+              <div className="support-list-heading"><span>{isSupportAdmin(user.uid) ? "Demandes reçues" : "Mes demandes"}</span><small>{supportTickets.length}</small></div>
+              {supportLoading ? <div className="support-list-empty">Chargement des tickets…</div> : supportTickets.length === 0 ? <div className="support-list-empty">Aucun ticket pour l’instant.<br />Besoin d’aide ? Crée la première demande.</div> : (
+                <div className="support-ticket-list">
+                  {supportTickets.map((ticket) => (
+                    <button key={ticket.id} className={supportTicketId === ticket.id ? "support-ticket-item selected" : "support-ticket-item"} onClick={() => { setSupportTicketId(ticket.id); setSupportMessages([]); setSupportError(""); void loadSupportMessages(ticket.id); }}>
+                      <span className="support-ticket-topline"><strong>{ticket.subject}</strong><span className={"support-status status-" + ticket.status}>{supportStatusLabel(ticket.status)}</span></span>
+                      <span className="support-ticket-preview">{ticket.lastMessagePreview || "Pas encore de message"}</span>
+                      <span className="support-ticket-meta">{isSupportAdmin(user.uid) ? ticket.username || ticket.email : supportCategoryLabel(ticket.category)} · {new Date(timestampMillis(ticket.updatedAt) || timestampMillis(ticket.createdAt) || Date.now()).toLocaleDateString("fr-FR")}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </aside>
+            <section className="support-conversation">
+              {!supportTicketId ? (
+                <form className="form-stack support-compose" onSubmit={createSupportTicket}>
+                  <span className="section-kicker">NOUVELLE DEMANDE</span>
+                  <h3>Comment peut-on t’aider ?</h3>
+                  <p>Choisis le sujet, explique ce qui se passe et l’équipe pourra te répondre ici.</p>
+                  <label>Catégorie
+                    <select value={supportCategory} onChange={(event) => setSupportCategory(event.target.value as SupportCategory)}>
+                      <option value="bug">Bug / problème technique</option><option value="account">Compte et profil</option><option value="reading">Lecteur / chapitres</option><option value="catalog">Catalogue</option><option value="suggestion">Suggestion</option><option value="other">Autre demande</option>
+                    </select>
+                  </label>
+                  <label>Sujet<input required minLength={5} maxLength={120} value={supportSubject} onChange={(event) => setSupportSubject(event.target.value)} placeholder="Ex. : les pages du chapitre ne chargent pas" /></label>
+                  <label>Explique le problème<textarea required minLength={10} maxLength={4000} rows={5} value={supportFirstMessage} onChange={(event) => setSupportFirstMessage(event.target.value)} placeholder="Ce que tu essayais de faire, ce qui s’est passé et le navigateur utilisé…" /></label>
+                  <div className="support-compose-foot"><span>{supportFirstMessage.length}/4000 caractères</span><button className="primary-button" type="submit" disabled={supportBusy}>{supportBusy ? "Création…" : "Créer le ticket"} <Send size={16} /></button></div>
+                  <small className="modal-footnote">N’inclus aucun mot de passe, code de connexion ou donnée privée inutile.</small>
+                </form>
+              ) : (
+                (() => {
+                  const ticket = supportTickets.find((entry) => entry.id === supportTicketId);
+                  if (!ticket) return <div className="support-list-empty">Cette demande n’est plus disponible. Actualise la liste ou crée un nouveau ticket.</div>;
+                  return (
+                    <div className="support-thread">
+                      <div className="support-thread-heading">
+                        <div><span className="section-kicker">{supportCategoryLabel(ticket.category)}</span><h3>{ticket.subject}</h3><p>{isSupportAdmin(user.uid) ? "Créé par " + (ticket.username || ticket.email) : "Demande envoyée à l’équipe KOVA"}</p></div>
+                        <span className={"support-status status-" + ticket.status}>{supportStatusLabel(ticket.status)}</span>
+                      </div>
+                      {isSupportAdmin(user.uid) ? (
+                        <div className="support-status-controls">
+                          <label>Statut
+                            <select value={ticket.status} disabled={supportStatusBusy} onChange={(event) => void changeSupportStatus(event.target.value as SupportStatus)}>
+                              <option value="open">Ouvert</option><option value="in_progress">En cours</option><option value="resolved">Résolu</option><option value="closed">Fermé</option>
+                            </select>
+                          </label>
+                        </div>
+                      ) : ticket.status !== "resolved" && ticket.status !== "closed" ? (
+                        <div className="support-status-controls"><button className="small-outline" onClick={() => void changeSupportStatus("resolved")} disabled={supportStatusBusy}>Marquer comme résolu</button></div>
+                      ) : (
+                        <div className="support-resolved-note"><ShieldCheck size={15} /> {ticket.status === "resolved" ? "Cette demande est marquée comme résolue. Réponds pour la rouvrir." : "Cette demande est fermée. Un nouveau message la rouvrira."}</div>
+                      )}
+                      <div className="support-messages" aria-live="polite">
+                        {supportMessages.length === 0 ? <div className="support-list-empty">Chargement ou aucun message disponible…</div> : supportMessages.map((message) => (
+                          <article key={message.id} className={"support-message " + (message.authorRole === "support" ? "from-support" : "from-user")}>
+                            <div className="support-message-head"><strong>{message.authorRole === "support" ? "Support KOVA" : message.authorName || "Lecteur"}</strong><time>{new Date(timestampMillis(message.createdAt) || Date.now()).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}</time></div>
+                            <p>{message.body}</p>
+                          </article>
+                        ))}
+                      </div>
+                      <form className="support-reply-form" onSubmit={sendSupportReply}>
+                        <label htmlFor="support-reply">Ta réponse</label>
+                        <textarea id="support-reply" value={supportReply} onChange={(event) => setSupportReply(event.target.value)} maxLength={4000} rows={3} placeholder="Écris une réponse claire et respectueuse…" required />
+                        <div className="support-compose-foot"><span>{supportReply.length}/4000 caractères</span><button className="primary-button" type="submit" disabled={supportBusy}>{supportBusy ? "Envoi…" : isSupportAdmin(user.uid) ? "Répondre au lecteur" : "Envoyer la réponse"} <Send size={16} /></button></div>
+                      </form>
+                    </div>
+                  );
+                })()
+              )}
+            </section>
+          </div>
+        </Modal>
+      )}
       {settingsOpen && (
         <Modal title="Réglages KOVA" subtitle="Les réglages utiles pour garder une expérience simple et sûre." onClose={() => setSettingsOpen(false)}>
           <div className="settings-list">
@@ -1130,50 +1272,44 @@ export default function App() {
             <div className="setting-row"><span className="setting-icon"><LibraryBig size={18} /></span><span><strong>Bibliothèque synchronisée</strong><small>{user ? "Enregistrée dans ton compte Firebase." : "Connecte-toi pour retrouver tes séries."}</small></span><span className="setting-state">{user ? "EN LIGNE" : "HORS SESSION"}</span></div>
             <div className="setting-row"><span className="setting-icon"><UserRound size={18} /></span><span><strong>Données de profil</strong><small>Les champs restent privés selon les règles Firestore du compte.</small></span><span className="setting-state">PRIVÉ</span></div>
           </div>
-          <p className="modal-footnote">KOVA crédite MangaDex et les groupes de traduction, respecte les demandes de retrait et ne doit pas ajouter de publicités ou de services payants au projet MangaDex.</p>
+          <p className="modal-footnote">Les données de cette maquette sont fictives. Les intégrations de contenu externe sont désactivées pendant le travail sur l’interface.</p>
         </Modal>
       )}
 
-      {selectedItem && screen === "detail" && (
-        <section className="title-detail-page page-section">
-          <div className="detail-route-heading">
-            <button className="secondary-button" onClick={() => goTo("explore")}><ArrowRight className="reader-back-icon" size={16} /> Retour au catalogue</button>
-            <span className="section-kicker">KOVA / FICHE MANGA</span>
-            <h1>{selectedItem.title}</h1>
-            <p>{selectedItem.kind === "manhwa" ? "Manhwa" : "Manga"} · {selectedItem.year ?? "Année inconnue"} · Source MangaDex</p>
-          </div>
+      {selectedItem && screen !== "reader" && !supportOpen && (
+        <Modal title={selectedItem.title} subtitle={`${selectedItem.kind === "manhwa" ? "Manhwa" : "Manga"} · ${selectedItem.year ?? "Année inconnue"} · catalogue local`} onClose={() => { setSelectedItem(null); setReaderOpen(false); setReaderChapterPages([]); setReaderChapterId(""); setReaderError(""); navigatePath("/explorer"); }} wide>
           <div className="detail-layout">
             <div className="detail-cover">
               {selectedItem.cover ? <img src={selectedItem.cover} alt={`Couverture de ${selectedItem.title}`} /> : <span className="cover-placeholder"><BookOpen size={32} /><span>KOVA</span></span>}
             </div>
             <div className="detail-copy">
-              {selectedItem.anilistUrl && <a className="secondary-button full-button" href={selectedItem.anilistUrl} target="_blank" rel="noreferrer">Voir la fiche AniList ↗{selectedItem.anilistScore ? ` · ${selectedItem.anilistScore}/100` : ""}</a>}
-              {selectedItem.anilistGenres?.length ? <p className="alternate-title">Genres AniList : {selectedItem.anilistGenres.join(" · ")}</p> : null}
+              
+              
               {selectedItem.alternateTitle && <p className="alternate-title">{selectedItem.alternateTitle}</p>}
               <p>{selectedItem.description || "Aucun résumé disponible pour cette fiche."}</p>
               <div className="detail-facts"><span><small>Statut</small><strong>{selectedItem.status || "Non renseigné"}</strong></span><span><small>Langue</small><strong>{selectedItem.originalLanguage === "ko" ? "Coréen" : "Japonais"}</strong></span></div>
               <button className="primary-button full-button" onClick={() => void saveToLibrary(selectedItem)}>{savedIds.has(selectedItem.id) ? <Check size={17} /> : <Heart size={17} />}{savedIds.has(selectedItem.id) ? "Dans ma bibliothèque" : "Ajouter à ma bibliothèque"}</button>
               {chapterListLoading ? (
-                <LoadingState text="Recherche des chapitres dans MangaDex…" />
+                <LoadingState text="Recherche des chapitres dans catalogue local…" />
               ) : chapterListError ? (
                 <p className="reader-error">{chapterListError}</p>
               ) : (selectedItem.chapters?.length || chapterPageHasMore) ? (
                 <>
                   <button className="secondary-button full-button" onClick={() => setReaderOpen((open) => !open)}><BookOpen size={17} /> {readerOpen ? "Masquer les chapitres" : "Voir les chapitres"} <ArrowRight size={16} /></button>
-                  <p className="modal-footnote">Les pages sont chargées depuis MangaDex. Les groupes de traduction sont crédités dans chaque chapitre.</p>
+                  <p className="modal-footnote">Aucune page ni source de lecture externe n’est chargée en mode démonstration.</p>
                 </>
-              ) : <p className="modal-footnote">Aucun chapitre lisible n'a été trouvé pour ce titre dans MangaDex.</p>}
+              ) : <p className="modal-footnote">Aucun chapitre lisible n'a été trouvé pour ce titre dans catalogue local.</p>}
             </div>
           </div>
           {readerOpen && (selectedItem.chapters?.length || chapterPageHasMore) ? (
-            <section className="kova-reader" aria-label="Chapitres MangaDex">
+            <section className="kova-reader" aria-label="Chapitres catalogue local">
               <div className="mangadex-reader">
-                <div className="reader-chapter-heading"><span className="section-kicker">CHAPITRES MANGADEX</span><h3>Choisis un chapitre</h3><p>Les chapitres français et anglais disponibles peuvent être lus dans une page dédiée.</p></div>
+                <div className="reader-chapter-heading"><span className="section-kicker">CHAPITRES DE DÉMONSTRATION</span><h3>Choisis un chapitre</h3><p>Cette fiche de démonstration ne contient pas de chapitre réel pendant cette phase.</p></div>
                 <div className="mangadex-chapter-list">
                   {(selectedItem.chapters ?? []).slice(0, chapterVisibleCount).map((chapter) => (
                     <div className="mangadex-chapter-row" key={chapter.mangaDexChapterId}>
                       <span>{chapter.title}{chapter.scanlationGroup && <small className="chapter-attribution">Traduction : {chapter.scanlationGroup}</small>}</span>
-                      <button className="secondary-button" onClick={() => void openMangaDexChapter(chapter.mangaDexChapterId, chapter.title)} disabled={readerLoading && readerChapterId === chapter.mangaDexChapterId}>
+                      <button className="secondary-button" onClick={() => void openDemoChapter(chapter.mangaDexChapterId, chapter.title)} disabled={readerLoading && readerChapterId === chapter.mangaDexChapterId}>
                         {readerLoading && readerChapterId === chapter.mangaDexChapterId ? "Chargement…" : "Lire"}
                       </button>
                     </div>
@@ -1194,7 +1330,7 @@ export default function App() {
               </div>
             </section>
           ) : null}
-        </section>
+        </Modal>
       )}
       {loadingAuth && <div className="session-indicator">Vérification de la session…</div>}
     </div>
