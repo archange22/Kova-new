@@ -172,3 +172,41 @@
  .profile-avatar-row .premium-profile-editor-avatar { flex-basis:100%; }
  .profile-avatar-row .profile-upload-button { flex-basis:auto; }
 }
+
+
+/* KOVA legal center: premium policy hub */
+.footer-legal-links { display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px 15px;width:100%;padding:13px 0;border-top:1px solid rgba(205,184,255,.1);border-bottom:1px solid rgba(205,184,255,.1); }
+.footer-legal-links button { display:inline-flex;align-items:center;gap:6px;padding:7px 2px;border:0;background:transparent;color:#a99dbd;font-size:11px;cursor:pointer;transition:color .18s ease; }
+.footer-legal-links button:hover { color:#e4d2ff; }
+.footer-legal-links button svg { color:#c6a5ff; }
+.legal-hero { display:flex;align-items:flex-start;gap:15px;padding:17px;margin:8px 0 16px;border:1px solid rgba(190,157,255,.2);border-radius:18px;background:radial-gradient(ellipse at 0 0,rgba(145,93,255,.17),transparent 70%),linear-gradient(120deg,rgba(255,255,255,.035),rgba(255,255,255,.012)); }
+.legal-hero-icon { display:grid;place-items:center;flex-shrink:0;width:48px;height:48px;border:1px solid rgba(197,165,255,.27);border-radius:15px;background:rgba(151,104,255,.13);color:#e2ceff; }
+.legal-hero h3 { margin:7px 0 6px;color:#fff;font-size:20px;letter-spacing:-.035em; }
+.legal-hero p { margin:0;color:#a99dbd;font-size:12px;line-height:1.65; }
+.legal-tabs { display:flex;gap:7px;overflow-x:auto;padding:3px 1px 12px;margin-bottom:12px;scrollbar-width:thin; }
+.legal-tabs button { display:inline-flex;align-items:center;justify-content:center;gap:7px;flex:0 0 auto;min-height:39px;padding:0 12px;border:1px solid rgba(205,184,255,.13);border-radius:11px;background:rgba(255,255,255,.025);color:#b5a8c8;font-size:11px;font-weight:750;cursor:pointer; }
+.legal-tabs button:hover { border-color:rgba(197,165,255,.35);color:#eee2ff; }
+.legal-tabs button.selected { border-color:rgba(194,160,255,.48);background:linear-gradient(120deg,rgba(159,105,255,.22),rgba(87,118,255,.12));color:#f1e7ff;box-shadow:0 5px 18px rgba(120,75,220,.1); }
+.legal-document { max-height:min(49dvh,540px);overflow-y:auto;padding:clamp(16px,3vw,24px);border:1px solid rgba(205,184,255,.13);border-radius:17px;background:linear-gradient(160deg,rgba(255,255,255,.026),rgba(255,255,255,.008));scrollbar-color:rgba(176,140,255,.35) transparent; }
+.legal-version { display:inline-flex;align-items:center;padding:6px 9px;border:1px solid rgba(196,165,255,.18);border-radius:999px;background:rgba(168,85,247,.08);color:#cdb4ff;font-size:9px;font-weight:900;letter-spacing:.1em; }
+.legal-document h3 { margin:16px 0 9px;color:#fff;font-size:23px;letter-spacing:-.035em; }
+.legal-document h4 { margin:21px 0 7px;color:#e4d2ff;font-size:13px; }
+.legal-document p,.legal-document li { color:#bdb2cc;font-size:12px;line-height:1.8;overflow-wrap:anywhere; }
+.legal-document p { margin:8px 0; }
+.legal-document ul { padding-left:20px; }
+.legal-document li { padding:2px 0; }
+.legal-callout { padding:13px 14px;border:1px solid rgba(196,165,255,.17);border-radius:12px;background:rgba(168,85,247,.07); }
+.legal-callout strong { color:#e8d9ff;overflow-wrap:anywhere; }
+.legal-disclaimer { display:flex;align-items:flex-start;gap:8px;margin:14px 0 0;color:#9f93b4;font-size:10px;line-height:1.6; }
+.legal-disclaimer svg { flex-shrink:0;margin-top:1px;color:#c6a5ff; }
+@media(max-width:560px) {
+ .footer-legal-links { justify-content:flex-start;gap:5px 13px; }
+ .footer-legal-links button { font-size:10px; }
+ .legal-hero { padding:13px;gap:11px; }
+ .legal-hero-icon { width:40px;height:40px;border-radius:12px; }
+ .legal-hero h3 { font-size:17px; }
+ .legal-tabs { margin-inline:-2px; }
+ .legal-tabs button { min-height:37px;padding-inline:10px; }
+ .legal-document { max-height:47dvh;padding:15px; }
+ .legal-document h3 { font-size:21px; }
+}
