@@ -14,7 +14,7 @@ import {
   doc,
   getDoc,
   getDocs,
-  query,
+  query as firestoreQuery,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -723,7 +723,7 @@ export default function App() {
       const ticketCollection = collection(db, "supportTickets");
       const snapshot = isSupportAdmin(user.uid)
         ? await getDocs(ticketCollection)
-        : await getDocs(query(ticketCollection, where("uid", "==", user.uid)));
+        : await getDocs(firestoreQuery(ticketCollection, where("uid", "==", user.uid)));
       const tickets = snapshot.docs
         .map((entry) => ({ id: entry.id, ...entry.data() }) as SupportTicket)
         .sort((a, b) => timestampMillis(b.updatedAt) - timestampMillis(a.updatedAt));
