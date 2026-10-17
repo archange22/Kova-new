@@ -122,7 +122,7 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow get, list: if supportAdmin()
           || (signedIn()
-            && getAfter(/databases/$(database)/documents/supportTickets/$(ticketId)).data.uid == request.auth.uid);
+            && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.uid == request.auth.uid);
 
         allow create: if signedIn()
           && request.resource.data.keys().hasAll([
@@ -140,7 +140,7 @@ service cloud.firestore {
           && request.resource.data.body.size() <= 4000
           && request.resource.data.createdAt is timestamp
           && (supportAdmin()
-            || get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.uid == request.auth.uid);
+            || getAfter(/databases/$(database)/documents/supportTickets/$(ticketId)).data.uid == request.auth.uid);
 
         allow update, delete: if false;
       }
