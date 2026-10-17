@@ -34,7 +34,10 @@ service cloud.firestore {
       // A member may only create a normal account for their own Auth UID.
       allow create: if ownsUser(userId)
         && request.resource.data.uid == userId
-        && request.resource.data.role == 'user'
+        && (
+          request.resource.data.role == 'user'
+          || (isOwner() && request.resource.data.role == 'owner')
+        )
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.username is string
         && request.resource.data.username.size() <= 30
