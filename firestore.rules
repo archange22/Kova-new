@@ -9,6 +9,14 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
+
+    function supportAdmin() {
+      return signedIn() && request.auth.uid in [
+        'TIat7e3WQyXIk9HyLdjPxsfZ6R92',
+        'B23E8GVKHIUnzgdK5YScoiZzsnG3'
+      ];
+    }
+
     match /users/{userId} {
       allow read: if ownsUser(userId);
       allow create: if ownsUser(userId)
@@ -52,6 +60,83 @@ service cloud.firestore {
           && request.resource.data.libraryStatus in [
             'to_read', 'reading', 'completed', 'paused', 'dropped'
           ];
+      }
+    }
+
+    match /supportTickets/{ticketId} {
+      allow get, list: if supportAdmin()
+        || (signedIn() && resource.data.uid == request.auth.uid);
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasAll([
+          'uid', 'username', 'email', 'subject', 'category', 'status',
+          'lastMessagePreview', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'uid', 'username', 'email', 'subject', 'category', 'status',
+          'lastMessagePreview', 'lastMessageAt', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.username is string
+        && request.resource.data.username.size() <= 60
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.subject is string
+        && request.resource.data.subject.size() >= 5
+        && request.resource.data.subject.size() <= 120
+        && request.resource.data.category in [
+          'bug', 'account', 'reading', 'catalog', 'suggestion', 'other'
+        ]
+        && request.resource.data.status == 'open'
+        && request.resource.data.lastMessagePreview is string
+        && request.resource.data.lastMessagePreview.size() <= 180
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+
+      allow update: if (
+        supportAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'updatedAt', 'lastMessageAt', 'lastMessagePreview'
+        ])
+        && request.resource.data.status in ['open', 'in_progress', 'resolved', 'closed']
+        && request.resource.data.updatedAt is timestamp
+      ) || (
+        signedIn()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'updatedAt', 'lastMessageAt', 'lastMessagePreview'
+        ])
+        && request.resource.data.updatedAt is timestamp
+        && (request.resource.data.status == resource.data.status
+          || request.resource.data.status in ['open', 'resolved'])
+      );
+
+      allow delete: if supportAdmin();
+
+      match /messages/{messageId} {
+        allow get, list: if supportAdmin()
+          || (signedIn()
+            && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.uid == request.auth.uid);
+
+        allow create: if signedIn()
+          && request.resource.data.keys().hasAll([
+            'authorUid', 'authorName', 'authorRole', 'body', 'createdAt'
+          ])
+          && request.resource.data.keys().hasOnly([
+            'authorUid', 'authorName', 'authorRole', 'body', 'createdAt'
+          ])
+          && request.resource.data.authorUid == request.auth.uid
+          && request.resource.data.authorName is string
+          && request.resource.data.authorName.size() <= 60
+          && request.resource.data.authorRole == (supportAdmin() ? 'support' : 'user')
+          && request.resource.data.body is string
+          && request.resource.data.body.size() >= 2
+          && request.resource.data.body.size() <= 4000
+          && request.resource.data.createdAt is timestamp
+          && (supportAdmin()
+            || get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.uid == request.auth.uid);
+
+        allow update, delete: if false;
       }
     }
   }
