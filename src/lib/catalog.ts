@@ -5,10 +5,18 @@ export type ReadableChapter = {
   mangaDexChapterId: string;
   title: string;
   pages: number;
+  volume?: string;
   publishedAt?: string;
   language: string;
   scanlationGroup?: string;
   scanlationGroupId?: string;
+};
+
+export type ReadableChapterPage = {
+  chapters: ReadableChapter[];
+  nextOffset: number;
+  total: number;
+  hasMore: boolean;
 };
 
 export type CatalogItem = {
@@ -179,20 +187,24 @@ export async function fetchCatalog(
 /** Retrieve readable French/English chapters for the selected series. */
 export async function fetchMangaDexChapters(
   mangaId: string,
+  offset = 0,
   signal?: AbortSignal,
-): Promise<ReadableChapter[]> {
+): Promise<ReadableChapterPage> {
   const rawMangaId = mangaId.startsWith("mangadex-") ? mangaId.slice(9) : mangaId;
   if (!/^[0-9a-f-]{36}$/i.test(rawMangaId)) {
     throw new Error("Identifiant MangaDex invalide.");
   }
+  const pageOffset = Math.max(0, Math.floor(offset));
   const params = new URLSearchParams();
   params.set("limit", "100");
+  params.set("offset", String(pageOffset));
   params.set("order[chapter]", "asc");
   params.set("includeExternalUrl", "0");
   params.set("includes[]", "scanlation_group");
   for (const language of SUPPORTED_LANGUAGES) params.append("translatedLanguage[]", language);
 
   const response = await apiJson<{
+    total?: number;
     data?: Array<{
       id: string;
       attributes?: {
@@ -210,7 +222,7 @@ export async function fetchMangaDexChapters(
   }>(`/manga/${rawMangaId}/feed?${params.toString()}`, signal);
 
   const seen = new Set<string>();
-  return (response.data ?? [])
+  const chapters = (response.data ?? [])
     .filter((chapter) => {
       const attributes = chapter.attributes;
       return Boolean(
@@ -236,12 +248,21 @@ export async function fetchMangaDexChapters(
         mangaDexChapterId: chapter.id,
         title: [label, attributes.title].filter(Boolean).join(" · "),
         pages: attributes.pages ?? 0,
+        volume: attributes.volume ?? undefined,
         publishedAt: attributes.publishAt,
         language: attributes.translatedLanguage ?? "en",
         scanlationGroup: group?.attributes?.name,
         scanlationGroupId: group?.id,
       };
     });
+  const nextOffset = pageOffset + (response.data?.length ?? 0);
+  const total = response.total ?? nextOffset;
+  return {
+    chapters,
+    nextOffset,
+    total,
+    hasMore: nextOffset < total,
+  };
 }
 
 /** Load chapter images from MangaDex@Home, using compressed images by default for mobile data savings. */
