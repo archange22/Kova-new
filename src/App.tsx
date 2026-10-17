@@ -30,6 +30,10 @@ import {
   BookOpen,
   Check,
   Compass,
+  Copyright,
+  FileText,
+  LockKeyhole,
+  Scale,
   Eye,
   EyeOff,
   Heart,
@@ -321,6 +325,8 @@ export default function App() {
   const [publicProfile, setPublicProfile] = useState<(Profile & { uid: string }) | null>(null);
   const [publicProfileLoading, setPublicProfileLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [legalOpen, setLegalOpen] = useState(false);
+  const [legalSection, setLegalSection] = useState<"terms" | "privacy" | "copyright" | "community" | "safety">("terms");
   const [supportOpen, setSupportOpen] = useState(false);
   const [supportLoading, setSupportLoading] = useState(false);
   const [supportBusy, setSupportBusy] = useState(false);
@@ -1316,7 +1322,8 @@ export default function App() {
         <button className="brand footer-brand" onClick={() => goTo("home")}><span className="brand-mark">K</span><span>KOVA</span><span className="brand-dot">.</span></button>
         <span>Manga · Manhwa</span>
         <div className="footer-links"><button type="button" onClick={() => goTo("home")}>Accueil</button><button type="button" onClick={() => goTo("explore")}>Explorer</button><button type="button" onClick={() => goTo("library")}>Ma bibliothèque</button></div>
-        <span>© {new Date().getFullYear()} KOVA</span>
+        <div className="footer-legal-links"><button type="button" onClick={() => { setLegalSection("terms"); setLegalOpen(true); }}><FileText size={13} /> Conditions d’utilisation</button><button type="button" onClick={() => { setLegalSection("privacy"); setLegalOpen(true); }}><LockKeyhole size={13} /> Confidentialité</button><button type="button" onClick={() => { setLegalSection("copyright"); setLegalOpen(true); }}><Copyright size={13} /> Copyright</button><button type="button" onClick={() => { setLegalSection("community"); setLegalOpen(true); }}><Scale size={13} /> Règles de la communauté</button><button type="button" onClick={() => { setLegalSection("safety"); setLegalOpen(true); }}><ShieldCheck size={13} /> Sécurité et signalements</button></div>
+        <span>© {new Date().getFullYear()} KOVA · Tous droits réservés</span>
       </footer>}
 
       {notice && <div className="notice-toast" role="status"><span>{notice}</span><button onClick={() => setNotice("")} aria-label="Fermer le message"><X size={16} /></button></div>}
@@ -1509,6 +1516,58 @@ export default function App() {
               )}
             </section>
           </div>
+        </Modal>
+      )}
+      {legalOpen && (
+        <Modal title="Centre juridique KOVA" subtitle="Les règles essentielles, présentées clairement et accessibles à tout moment." onClose={() => setLegalOpen(false)} wide>
+          <div className="legal-hero"><span className="legal-hero-icon"><Scale size={25} /></span><div><span className="section-kicker">KOVA · INFORMATIONS OFFICIELLES</span><h3>Un espace de lecture respectueux.</h3><p>Lis les règles avant d’utiliser les fonctionnalités de KOVA. Cette page est une base informative à adapter aux lois applicables avant un lancement public.</p></div></div>
+          <div className="legal-tabs" role="tablist" aria-label="Documents juridiques">
+            <button role="tab" aria-selected={legalSection === "terms"} className={legalSection === "terms" ? "selected" : ""} onClick={() => setLegalSection("terms")}><FileText size={15} /> Conditions</button>
+            <button role="tab" aria-selected={legalSection === "privacy"} className={legalSection === "privacy" ? "selected" : ""} onClick={() => setLegalSection("privacy")}><LockKeyhole size={15} /> Confidentialité</button>
+            <button role="tab" aria-selected={legalSection === "copyright"} className={legalSection === "copyright" ? "selected" : ""} onClick={() => setLegalSection("copyright")}><Copyright size={15} /> Copyright</button>
+            <button role="tab" aria-selected={legalSection === "community"} className={legalSection === "community" ? "selected" : ""} onClick={() => setLegalSection("community")}><Scale size={15} /> Communauté</button>
+            <button role="tab" aria-selected={legalSection === "safety"} className={legalSection === "safety" ? "selected" : ""} onClick={() => setLegalSection("safety")}><ShieldCheck size={15} /> Sécurité</button>
+          </div>
+          <article className="legal-document" role="tabpanel">
+            {legalSection === "terms" && <>
+              <span className="legal-version">DOCUMENT 01 · CONDITIONS D’UTILISATION</span><h3>Bienvenue sur KOVA</h3><p>En accédant à KOVA, tu acceptes d’utiliser le service de manière légale, honnête et respectueuse. Si tu n’acceptes pas ces règles, n’utilise pas les fonctions concernées.</p>
+              <h4>1. Compte et accès</h4><p>Tu es responsable de la sécurité de ton compte et des actions effectuées depuis celui-ci. Fournis des informations exactes, garde tes identifiants secrets et signale toute activité inhabituelle. Ne tente pas d’accéder au compte ou aux données d’une autre personne.</p>
+              <h4>2. Utilisation autorisée</h4><p>Tu peux utiliser les outils de catalogue, de bibliothèque et de profil selon leur disponibilité. Il est interdit de perturber le service, contourner ses protections, automatiser des abus, diffuser des logiciels malveillants ou utiliser KOVA pour enfreindre la loi.</p>
+              <h4>3. Disponibilité et évolutions</h4><p>KOVA peut être modifié, interrompu ou corrigé pour des raisons techniques, de sécurité ou de droits. Certaines fonctions et données de démonstration peuvent être incomplètes et ne constituent pas une promesse de disponibilité permanente.</p>
+              <h4>4. Contenu et responsabilité</h4><p>Tu conserves les droits sur les contenus que tu crées, sous réserve des droits de tiers. Tu ne dois publier que des éléments que tu as le droit d’utiliser. KOVA ne revendique pas la propriété des œuvres de leurs auteurs.</p>
+              <h4>5. Suspension et contact</h4><p>Les abus, atteintes aux droits ou risques de sécurité peuvent entraîner la limitation d’une fonction ou d’un compte, avec examen raisonnable du signalement. Pour une demande, utilise le centre Support / tickets de l’application.</p>
+            </>}
+            {legalSection === "privacy" && <>
+              <span className="legal-version">DOCUMENT 02 · CONFIDENTIALITÉ</span><h3>Ta vie privée compte.</h3><p>KOVA doit collecter uniquement les informations nécessaires au fonctionnement des fonctions que tu utilises. Cette section décrit les pratiques prévues par l’application et doit être vérifiée par rapport à la configuration réelle avant publication.</p>
+              <h4>Données pouvant être traitées</h4><p>Selon les fonctions activées : identifiant de compte Firebase, adresse e-mail pour l’authentification, pseudonyme, biographie, avatar, bannière, bibliothèque et demandes envoyées au support. Les données de connexion sont gérées par le fournisseur d’authentification.</p>
+              <h4>Utilisation et visibilité</h4><p>Les informations servent à connecter ton compte, enregistrer tes préférences, afficher les éléments de profil prévus et répondre aux tickets. N’ajoute pas d’informations sensibles dans ta biographie ou tes messages. Un profil public ne doit jamais afficher ton adresse e-mail ou des informations privées.</p>
+              <h4>Stockage et prestataires</h4><p>KOVA utilise Firebase pour certaines fonctions de compte et de données. Les règles d’accès et la configuration du projet déterminent qui peut lire ou modifier les données. Les images de profil peuvent être compressées dans le navigateur avant leur enregistrement.</p>
+              <h4>Contrôle de tes données</h4><p>Tu peux modifier les informations de profil disponibles. Pour demander l’accès, la correction ou la suppression de données associées à ton compte, contacte l’équipe via le support. Certaines traces peuvent être conservées lorsque la loi ou la sécurité l’exige.</p>
+              <h4>Important avant publication</h4><p>Le responsable du service doit compléter les coordonnées, les durées de conservation, les éventuels transferts internationaux et la procédure de suppression, puis vérifier la conformité aux lois applicables, notamment celles concernant les mineurs.</p>
+            </>}
+            {legalSection === "copyright" && <>
+              <span className="legal-version">DOCUMENT 03 · DROITS D’AUTEUR</span><h3>Respecter les créateurs.</h3><p>Les mangas, manhwas, bandes dessinées, illustrations, couvertures, logos et textes peuvent être protégés par le droit d’auteur ou d’autres droits de propriété intellectuelle.</p>
+              <h4>Propriété des œuvres</h4><p>Sauf indication explicite contraire, les droits restent à leurs auteurs, artistes, éditeurs ou titulaires respectifs. La présence d’une fiche ou d’une référence dans KOVA ne signifie pas que KOVA possède l’œuvre ni qu’une autorisation de reproduction a été accordée.</p>
+              <h4>Contenu autorisé</h4><p>Les utilisateurs doivent publier uniquement leurs propres créations, les contenus sous licence compatible ou les éléments pour lesquels ils disposent d’une autorisation. Ne téléverse pas de chapitres complets, scans, traductions ou illustrations protégés sans permission.</p>
+              <h4>Demande de retrait</h4><p>Un titulaire de droits ou son représentant peut contacter l’équipe via Support / tickets. Indique l’œuvre concernée, l’emplacement exact, les coordonnées professionnelles de contact, le droit revendiqué et une déclaration de bonne foi. Ne transmets que les informations nécessaires au traitement.</p>
+              <h4>Traitement</h4><p>KOVA examinera la demande, pourra demander des précisions, limiter l’accès au contenu contesté et contacter la personne concernée lorsque cela est approprié. Les fausses déclarations délibérées peuvent avoir des conséquences juridiques.</p>
+              <p className="legal-callout">Contact droits d’auteur : <strong>archangekouaho@gmail.com</strong>. Ce canal de contact ne remplace pas une procédure légale officielle si la loi applicable en exige une.</p>
+            </>}
+            {legalSection === "community" && <>
+              <span className="legal-version">DOCUMENT 04 · CHARTE DE COMMUNAUTÉ</span><h3>La passion, sans le harcèlement.</h3><p>KOVA est un espace pour découvrir des histoires et organiser ses lectures. La communauté doit rester accueillante, même lorsque les avis diffèrent.</p>
+              <h4>À faire</h4><ul><li>Respecter les autres lecteurs et leurs goûts.</li><li>Utiliser un pseudonyme et une image que tu as le droit d’utiliser.</li><li>Marquer clairement les spoilers lorsque les fonctions le permettent.</li><li>Signaler calmement les bugs, abus ou contenus problématiques.</li></ul>
+              <h4>Interdit</h4><ul><li>Menaces, harcèlement, insultes ciblées ou discrimination.</li><li>Usurpation d’identité, divulgation d’informations personnelles ou doxxing.</li><li>Spam, arnaques, liens malveillants ou publicité abusive.</li><li>Contenu sexuel impliquant des mineurs, exploitation ou contenus illégaux.</li><li>Publication répétée de contenus protégés sans autorisation.</li></ul>
+              <h4>Mesures possibles</h4><p>Selon la gravité et la répétition, l’équipe peut retirer un contenu, restreindre une fonction ou suspendre un compte. Les signalements sont examinés avec prudence et les décisions peuvent être contestées via le support.</p>
+            </>}
+            {legalSection === "safety" && <>
+              <span className="legal-version">DOCUMENT 05 · SÉCURITÉ ET SIGNALEMENTS</span><h3>Protège ton compte et les autres.</h3><p>Ne partage jamais ton mot de passe, un code de vérification, une adresse personnelle ou des informations financières dans ton profil ou un ticket.</p>
+              <h4>Signaler un problème</h4><p>Ouvre Support / tickets et choisis la catégorie la plus proche : compte, lecteur, catalogue, bug ou autre. Explique les étapes pour reproduire le problème, sans inclure de secret ou de donnée personnelle inutile.</p>
+              <h4>Contenu dangereux ou illicite</h4><p>Signale les menaces, l’usurpation d’identité, les atteintes aux droits et tout contenu qui semble illégal. Ne partage pas davantage le contenu concerné pour le signaler. En cas de danger immédiat, contacte les services compétents de ton pays.</p>
+              <h4>Protection des jeunes</h4><p>Respecte les limites d’âge et les règles locales. Les filtres automatiques ne détectent pas nécessairement tout contenu inadapté. Ne sollicite pas et ne diffuse pas de contenu sexuel impliquant des mineurs.</p>
+              <h4>Bonnes pratiques</h4><p>Utilise un mot de passe unique, déconnecte-toi sur un appareil partagé et méfie-toi des liens inconnus. L’équipe KOVA ne te demandera jamais ton mot de passe.</p>
+            </>}
+          </article>
+          <p className="legal-disclaimer"><ShieldCheck size={15} /> Modèle informatif à personnaliser et à faire vérifier avant un lancement public. Il ne constitue pas un avis juridique et ne garantit pas à lui seul la conformité légale.</p>
         </Modal>
       )}
       {settingsOpen && (
