@@ -96,27 +96,32 @@ service cloud.firestore {
         && request.resource.data.createdAt is timestamp
         && request.resource.data.updatedAt is timestamp;
 
-      allow update: if supportAdmin()
+      allow update: if (
+        supportAdmin()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status', 'updatedAt', 'lastMessageAt', 'lastMessagePreview'
         ])
         && validSupportStatus(request.resource.data.status)
         && request.resource.data.updatedAt is timestamp
-        || (signedIn()
-          && resource.data.uid == request.auth.uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'status', 'updatedAt', 'lastMessageAt', 'lastMessagePreview'
-          ])
-          && request.resource.data.updatedAt is timestamp
-          && (request.resource.data.status == resource.data.status
-            || request.resource.data.status in ['open', 'resolved']));
+      ) || (
+        signedIn()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'updatedAt', 'lastMessageAt', 'lastMessagePreview'
+        ])
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.lastMessagePreview is string
+        && request.resource.data.lastMessagePreview.size() <= 180
+        && (request.resource.data.status == resource.data.status
+          || request.resource.data.status in ['open', 'resolved'])
+      );
 
       allow delete: if supportAdmin();
 
       match /messages/{messageId} {
         allow get, list: if supportAdmin()
           || (signedIn()
-            && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.uid == request.auth.uid);
+            && getAfter(/databases/$(database)/documents/supportTickets/$(ticketId)).data.uid == request.auth.uid);
 
         allow create: if signedIn()
           && request.resource.data.keys().hasAll([
