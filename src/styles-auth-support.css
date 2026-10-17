@@ -1,0 +1,25 @@
+.auth-reset-link {
+  display: inline-flex;
+  align-self: flex-start;
+  justify-content: center;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: var(--pink, #f0abff);
+  font: inherit;
+  font-size: .9rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.auth-reset-link:disabled { opacity: .6; cursor: wait; }
+.auth-reset-link:focus-visible {
+  outline: 2px solid var(--orange, #67e8f9);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.support-compose textarea { resize: vertical; min-height: 120px; }
+.support-message-body { overflow-wrap: anywhere; }
+@media (max-width: 560px) {
+  .auth-reset-link { min-height: 40px; }
+}
