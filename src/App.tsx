@@ -1305,7 +1305,7 @@ export default function App() {
             </div>
             <div className="catalog-results-heading">
               <div><h2>{selectedKind === "all" ? "Tout le catalogue" : kindOptions.find((option) => option.value === selectedKind)?.label}</h2><span className="muted-caption">{query ? `Résultats pour « ${query} »` : "Une sélection alimentée par des catalogues publics"}</span></div>
-              <span className="catalog-provider">SOURCE · DONNÉES LOCALES</span>
+              <span className="catalog-provider">SOURCE · MANGADEX</span>
             </div>
             {catalogLoading ? <LoadingState text="Recherche dans le catalogue…" /> : catalogError ? <ErrorState message={catalogError} onRetry={() => setRefreshIndex((value) => value + 1)} /> : (
               <>
@@ -1398,7 +1398,7 @@ export default function App() {
         {screen !== "reader" && (
           <section className="source-section page-section">
             <div className="source-copy"><span className="section-kicker">CATALOGUE CONNECTÉ</span><h2>MangaDex en direct.<br /><span>Une lecture intégrée.</span></h2><p>KOVA récupère les fiches, chapitres et pages depuis MangaDex. Les résultats varient selon les langues disponibles, les traductions publiées et la connexion.</p></div>
-            <div className="official-links"><div className="official-reading-note"><span className="official-icon">M</span><span><strong>Catalogue local</strong><small>Catalogue et pages affichés dans KOVA, sans quitter le site</small></span><ShieldCheck size={16} /></div></div>
+            <div className="official-links"><div className="official-reading-note"><span className="official-icon">M</span><span><strong>Catalogue MangaDex</strong><small>Fiches et chapitres publics chargés dans le lecteur KOVA</small></span><ShieldCheck size={16} /></div></div>
           </section>
         )}
 
