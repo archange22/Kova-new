@@ -9,7 +9,7 @@ KOVA est une interface mobile et ordinateur, en français, consacrée aux **mang
 - Catalogues Manga/Manhwa via MangaDex et Anime via l’API publique Jikan (recherche, fiches, résumés, notes et pagination).
 - Liste des chapitres disponibles en français ou en anglais.
 - Page de lecture dédiée avec navigation chapitre précédent/suivant.
-- Qualité Éco (images compressées) et HQ (images d'origine).
+- Lecteur avec préréglages Éco, Standard et Super (Super priorise le chargement ; la résolution dépend toujours de MangaDex).
 - Crédit de MangaDex et du groupe de traduction affiché dans les fiches et le lecteur.
 - Authentification e-mail/mot de passe avec Firebase.
 - Profil : pseudonyme, bio, URL de photo et URL de bannière.
