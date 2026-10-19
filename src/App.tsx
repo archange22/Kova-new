@@ -44,6 +44,7 @@ import {
   Menu,
   MessageSquareText,
   Search,
+  Play,
   Send,
   Settings,
   ShieldCheck,
@@ -58,6 +59,7 @@ import { auth, db } from "./lib/firebase";
 import { fetchCatalog, fetchDemoChapters, fetchDemoChapterPages } from "./lib/catalog";
 import type { CatalogItem, CatalogKind, CatalogPage } from "./lib/catalog";
 import CatalogPulse from "./components/CatalogPulse";
+import AnimeCatalog from "./components/AnimeCatalog";
 
 type Profile = {
   username?: string;
@@ -181,9 +183,9 @@ function supportCategoryLabel(category: SupportCategory) {
   return labels[category];
 }
 
-type Screen = "home" | "explore" | "library" | "reader";
+type Screen = "home" | "explore" | "anime" | "library" | "reader";
 
-const reservedRoutes = new Set(["connexion", "bibliotheque", "explorer", "chapitre", "support"]);
+const reservedRoutes = new Set(["connexion", "bibliotheque", "explorer", "anime", "chapitre", "support"]);
 
 function slugify(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
@@ -341,7 +343,13 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile>({});
   const [loadingAuth, setLoadingAuth] = useState(true);
-  const [screen, setScreen] = useState<Screen>(() => window.location.pathname === "/bibliotheque" ? "library" : window.location.pathname === "/explorer" ? "explore" : "home");
+  const [screen, setScreen] = useState<Screen>(() => {
+    const path = window.location.pathname;
+    if (path === "/anime") return "anime";
+    if (path === "/bibliotheque") return "library";
+    if (path === "/explorer") return "explore";
+    return "home";
+  });
   const [routePath, setRoutePath] = useState(() => window.location.pathname);
   const appliedRouteRef = useRef("");
   const [readerReturnScreen, setReaderReturnScreen] = useState<Exclude<Screen, "reader">>("explore");
@@ -498,7 +506,7 @@ export default function App() {
       setReaderOpen(false);
     }
     const paths: Record<Screen, string> = {
-      home: "/", explore: "/explorer", library: "/bibliotheque",
+      home: "/", explore: "/explorer", anime: "/anime", library: "/bibliotheque",
       reader: selectedItem ? "/" + slugify(selectedItem.title) + "/chapitre/" + encodeURIComponent(readerChapterId) : "/",
     };
     navigatePath(paths[nextScreen]);
@@ -1126,6 +1134,13 @@ export default function App() {
       appliedRouteRef.current = path;
       return;
     }
+    if (path === "/anime") {
+      setScreen("anime");
+      setAuthOpen(false);
+      setSupportOpen(false);
+      appliedRouteRef.current = path;
+      return;
+    }
     if (path === "/") {
       appliedRouteRef.current = path;
       setAuthOpen(false);
@@ -1180,6 +1195,7 @@ export default function App() {
         <nav id="primary-navigation" aria-label="Navigation principale" className={menuOpen ? "nav-links nav-open" : "nav-links"}>
           <button className={screen === "home" ? "nav-link active" : "nav-link"} onClick={() => { setMenuOpen(false); goTo("home"); }}><Compass size={16} /> Accueil</button>
           <button className={screen === "explore" ? "nav-link active" : "nav-link"} onClick={() => { setMenuOpen(false); goTo("explore"); }}><Search size={16} /> Explorer</button>
+          <button className={screen === "anime" ? "nav-link active" : "nav-link"} onClick={() => { setMenuOpen(false); goTo("anime"); }}><Play size={16} /> Anime</button>
           <button className={screen === "library" ? "nav-link active" : "nav-link"} onClick={() => { setMenuOpen(false); goTo("library"); }}><LibraryBig size={16} /> Bibliothèque</button>
           <button className={supportOpen ? "nav-link active" : "nav-link"} onClick={() => { setMenuOpen(false); openSupport(); }}><LifeBuoy size={16} /> Support / tickets</button>
         </nav>
@@ -1208,6 +1224,7 @@ export default function App() {
                 <div className="hero-actions">
                   <button className="primary-button" onClick={() => goTo("explore")}><Compass size={17} /> Explorer le catalogue <ArrowRight size={17} /></button>
                   <button className="quiet-button" onClick={() => goTo("library")}><LibraryBig size={17} /> Ma bibliothèque</button>
+                  <button className="quiet-button" onClick={() => goTo("anime")}><Play size={17} /> Explorer les anime</button>
                 </div>
                 <form className="hero-search" onSubmit={(event) => { event.preventDefault(); goTo("explore"); }}>
                   <Search size={18} aria-hidden="true" />
@@ -1294,6 +1311,8 @@ export default function App() {
           </section>
         )}
 
+        {screen === "anime" && <AnimeCatalog />}
+
         {screen === "library" && (
           <section className="page-section library-page">
             <div className="section-heading library-heading">
@@ -1376,8 +1395,8 @@ export default function App() {
 
       {screen !== "reader" && <footer className="site-footer">
         <button className="brand footer-brand" onClick={() => goTo("home")}><span className="brand-mark">K</span><span>KOVA</span><span className="brand-dot">.</span></button>
-        <span>Manga · Manhwa</span>
-        <div className="footer-links"><button type="button" onClick={() => goTo("home")}>Accueil</button><button type="button" onClick={() => goTo("explore")}>Explorer</button><button type="button" onClick={() => goTo("library")}>Ma bibliothèque</button></div>
+        <span>Manga · Manhwa · Anime</span>
+        <div className="footer-links"><button type="button" onClick={() => goTo("home")}>Accueil</button><button type="button" onClick={() => goTo("explore")}>Explorer</button><button type="button" onClick={() => goTo("anime")}>Anime</button><button type="button" onClick={() => goTo("library")}>Ma bibliothèque</button></div>
         <div className="footer-legal-links"><button type="button" onClick={() => { setLegalSection("terms"); setLegalOpen(true); }}><FileText size={13} /> Conditions d’utilisation</button><button type="button" onClick={() => { setLegalSection("privacy"); setLegalOpen(true); }}><LockKeyhole size={13} /> Confidentialité</button><button type="button" onClick={() => { setLegalSection("copyright"); setLegalOpen(true); }}><Copyright size={13} /> Copyright</button><button type="button" onClick={() => { setLegalSection("community"); setLegalOpen(true); }}><Scale size={13} /> Règles de la communauté</button><button type="button" onClick={() => { setLegalSection("safety"); setLegalOpen(true); }}><ShieldCheck size={13} /> Sécurité et signalements</button></div>
         <span>© {new Date().getFullYear()} KOVA · Tous droits réservés</span>
       </footer>}
