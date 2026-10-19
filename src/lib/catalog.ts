@@ -175,7 +175,7 @@ export async function fetchCatalog(
 }
 
 /** Fetch real MangaDex chapters. Prefer French releases, then English if French is unavailable. */
-export async function fetchDemoChapters(
+export async function fetchChapters(
   mangaId: string,
   offset = 0,
   signal?: AbortSignal,
@@ -219,7 +219,7 @@ export async function fetchDemoChapters(
 }
 
 /** Get the real MangaDex reader page URLs using its at-home endpoint. */
-export async function fetchDemoChapterPages(
+export async function fetchChapterPages(
   chapterId: string,
   quality: "data" | "data-saver" = "data-saver",
   signal?: AbortSignal,
