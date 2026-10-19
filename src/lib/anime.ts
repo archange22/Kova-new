@@ -43,7 +43,7 @@ const cache = new Map<string, { expiresAt: number; value: AnimeCatalogPage }>();
 
 function cleanText(value: string | null | undefined, maxLength = 1_800) {
   return (value ?? "")
-    .replace(/\\[Written by MAL Rewrite\\]/g, "")
+    .replace(/\[Written by MAL Rewrite\]/g, "")
     .replace(/<[^>]*>/g, "")
     .trim()
     .slice(0, maxLength);
