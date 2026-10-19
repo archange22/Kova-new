@@ -55,7 +55,6 @@ const API = "https://api.mangadex.org";
 const PAGE_SIZE = 18;
 const COVER_BASE = "https://uploads.mangadex.org/covers";
 const SAFE_RATINGS = ["safe", "suggestive"];
-const LANGUAGES = ["fr", "en"];
 
 type MdRelationship = { id: string; type: string; attributes?: Record<string, unknown> };
 type MdManga = {
