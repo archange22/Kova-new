@@ -56,7 +56,7 @@ import {
   X,
 } from "lucide-react";
 import { auth, db } from "./lib/firebase";
-import { fetchCatalog, fetchDemoChapters, fetchDemoChapterPages } from "./lib/catalog";
+import { fetchCatalog, fetchChapters, fetchChapterPages } from "./lib/catalog";
 import type { CatalogItem, CatalogKind, CatalogPage } from "./lib/catalog";
 import CatalogPulse from "./components/CatalogPulse";
 import AnimeCatalog from "./components/AnimeCatalog";
@@ -789,7 +789,7 @@ export default function App() {
     }
 
     try {
-      const page = await fetchDemoChapters(item.id);
+      const page = await fetchChapters(item.id);
       if (requestId !== chapterListRequestId.current) return;
       setSelectedItem((current) => current?.id === item.id ? { ...current, chapters: page.chapters } : current);
       setChapterPageOffset(page.nextOffset);
@@ -817,7 +817,7 @@ export default function App() {
     setChapterPageLoading(true);
     setChapterListError("");
     try {
-      const page = await fetchDemoChapters(item.id, chapterPageOffset);
+      const page = await fetchChapters(item.id, chapterPageOffset);
       if (requestId !== chapterListRequestId.current) return;
       const additions = page.chapters.filter((chapter) => {
         const number = chapter.title.match(/^Chapitre ([^ ·]+)/)?.[1];
@@ -832,7 +832,7 @@ export default function App() {
       setChapterPageHasMore(page.hasMore);
       setChapterVisibleCount((current) => Math.min(merged.length, current + 30));
       if (merged.length === 0 && !page.hasMore) {
-        setChapterListError("Aucun chapitre de démonstration n’est disponible pour ce titre pour le moment. Les sources de contenu sont volontairement désactivées pendant l’amélioration de KOVA.");
+        setChapterListError("Aucun chapitre lisible en français ou en anglais n’a été trouvé pour ce titre sur MangaDex.");
       }
     } catch (error) {
       if (requestId !== chapterListRequestId.current) return;
@@ -842,7 +842,7 @@ export default function App() {
     }
   }
 
-  async function openDemoChapter(chapterId: string, chapterTitle: string) {
+  async function openChapter(chapterId: string, chapterTitle: string) {
     const requestId = ++readerPagesRequestId.current;
     setReaderLoading(true);
     setReaderError("");
@@ -856,7 +856,7 @@ export default function App() {
     setMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
     try {
-      const pages = await fetchDemoChapterPages(chapterId, mangaDexImageQuality(readerQuality));
+      const pages = await fetchChapterPages(chapterId, mangaDexImageQuality(readerQuality));
       if (requestId !== readerPagesRequestId.current) return;
       setReaderChapterPages(pages);
     } catch (error) {
@@ -875,7 +875,7 @@ export default function App() {
     setReaderLoading(true);
     setReaderError("");
     try {
-      const pages = await fetchDemoChapterPages(chapterId, mangaDexImageQuality(nextQuality));
+      const pages = await fetchChapterPages(chapterId, mangaDexImageQuality(nextQuality));
       if (requestId !== readerPagesRequestId.current) return;
       setReaderChapterPages(pages);
     } catch (error) {
@@ -1173,7 +1173,7 @@ export default function App() {
     if (chapterRoute) {
       void openTitle(item);
       const chapterId = decodeURIComponent(parts[2]);
-      void openDemoChapter(chapterId, "Chapitre");
+      void openChapter(chapterId, "Chapitre");
       navigatePath(routeKey, true);
     } else {
       void openTitle(item);
@@ -1226,7 +1226,7 @@ export default function App() {
               <div className="hero-copy">
                 <span className="eyebrow"><Sparkles size={14} /> TON UNIVERS, TON RYTHME</span>
                 <h1>Chaque page ouvre<br />un <span>nouveau monde.</span></h1>
-                <p>Explore les mangas japonais et les manhwas coréens du catalogue local, puis lis les chapitres directement ici.</p>
+                <p>Découvre les mangas et manhwas de MangaDex, lis les chapitres disponibles ici et explore aussi les fiches Anime.</p>
                 <div className="hero-actions">
                   <button className="primary-button" onClick={() => goTo("explore")}><Compass size={17} /> Explorer le catalogue <ArrowRight size={17} /></button>
                   <button className="quiet-button" onClick={() => goTo("library")}><LibraryBig size={17} /> Ma bibliothèque</button>
@@ -1243,8 +1243,8 @@ export default function App() {
                   />
                   <button type="submit" aria-label="Rechercher"><ArrowRight size={18} /></button>
                 </form>
-                <div className="hero-tags"><span>MANGA JAPONAIS</span><span>MANHWA CORÉEN</span><span>LECTEUR EN DÉMO</span></div>
-                <div className="hero-trust"><ShieldCheck size={15} /> MODE DÉMONSTRATION · SANS API</div>
+                <div className="hero-tags"><span>MANGA JAPONAIS</span><span>MANHWA CORÉEN</span><span>LECTURE INTÉGRÉE</span></div>
+                <div className="hero-trust"><ShieldCheck size={15} /> CATALOGUES CONNECTÉS · SOURCES PUBLIQUES</div>
               </div>
               <div className="hero-art" aria-label="Aperçu du catalogue KOVA">
                 <div className="art-orbit orbit-one" /><div className="art-orbit orbit-two" />
@@ -1295,7 +1295,7 @@ export default function App() {
             <div className="explore-heading">
               <span className="section-kicker">LE GRAND CATALOGUE</span>
               <h1>Ton prochain coup de cœur<br /><span>est peut-être ici.</span></h1>
-              <p>Teste la recherche, les filtres et les fiches du catalogue local. Les pages externes ne sont pas chargées.</p>
+              <p>Recherche les séries de MangaDex, filtre mangas et manhwas, puis ouvre les chapitres disponibles.</p>
             </div>
             <div className="catalog-toolbar">
               <label className="search-field" htmlFor="catalog-search"><Search size={19} /><input id="catalog-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Titre, univers, mot-clé…" /><kbd>⌕</kbd></label>
@@ -1313,7 +1313,7 @@ export default function App() {
                 {hasMore && <div className="load-more-wrap"><button className="secondary-button" onClick={() => void loadMore()} disabled={loadingMore}>{loadingMore ? "Chargement…" : "Afficher plus de titres"} <ArrowRight size={16} /></button></div>}
               </>
             )}
-            <p className="catalog-note"><ShieldCheck size={16} /> Les données affichées sont fictives et servent à tester la recherche, les fiches, la navigation et la bibliothèque.</p>
+            <p className="catalog-note"><ShieldCheck size={16} /> Les séries et chapitres viennent de MangaDex. Leur disponibilité dépend des traductions publiées et de la réponse de l’API.</p>
           </section>
         )}
 
@@ -1328,9 +1328,9 @@ export default function App() {
             {user && (
               <div className="anilist-sync-panel">
                 <div>
-                  <span className="section-kicker">MODE DÉVELOPPEMENT</span>
-                  <h2>Catalogue MangaDex en direct</h2>
-                  <p>Les APIs de catalogue et de métadonnées sont désactivées. Les titres fictifs servent à tester l’interface, la navigation et la bibliothèque. La connexion Firebase reste active.</p>
+                  <span className="section-kicker">MANGADEX · FIREBASE</span>
+                  <h2>Catalogue connecté</h2>
+                  <p>Les fiches et chapitres viennent de MangaDex. Ta bibliothèque et tes états de lecture sont enregistrés dans ton compte Firebase.</p>
                 </div>
               </div>
             )}
@@ -1360,10 +1360,10 @@ export default function App() {
         )}
 
         {screen === "reader" && (
-          <section className="full-reader-page" aria-label="Lecteur manga catalogue local">
+          <section className="full-reader-page" aria-label="Lecteur manga intégré dans KOVA">
             <div className="reader-page-toolbar">
               <button className="secondary-button" onClick={() => { setScreen(readerReturnScreen); setReaderOpen(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}><ArrowRight className="reader-back-icon" size={16} /> Retour à la fiche</button>
-              <div className="reader-page-title"><strong>{selectedItem?.title ?? "Lecture catalogue local"}</strong><span>{readerChapterTitle}</span></div>
+              <div className="reader-page-title"><strong>{selectedItem?.title ?? "Lecture KOVA"}</strong><span>{readerChapterTitle}</span></div>
               {readerChapterId && <span className="reader-in-site-label"><ShieldCheck size={15} /> Lecture intégrée dans KOVA</span>}
             </div>
             <div className="reader-page-controls">
@@ -1378,7 +1378,7 @@ export default function App() {
               <span>{readerQuality === "eco" ? "Images compactes, pensées pour économiser les données mobiles." : readerQuality === "standard" ? "Images d’origine, qualité maximale fournie par MangaDex." : "Images d’origine avec chargement anticipé. Aucune résolution supérieure n’est disponible via cette source."}</span>
               {readerChapterPages.length > 0 && <span>{readerChapterPages.length} pages</span>}
             </div>
-            {readerError && <div className="reader-error"><p>{readerError}</p><button className="secondary-button" onClick={() => void openDemoChapter(readerChapterId, readerChapterTitle)}>Réessayer</button></div>}
+            {readerError && <div className="reader-error"><p>{readerError}</p><button className="secondary-button" onClick={() => void openChapter(readerChapterId, readerChapterTitle)}>Réessayer</button></div>}
             {readerLoading && <LoadingState text="Chargement des pages depuis MangaDex…" />}
             {!readerLoading && readerChapterPages.length > 0 && (
               <div className="mangadex-pages full-reader-pages">
@@ -1387,17 +1387,17 @@ export default function App() {
             )}
             {!readerLoading && !readerError && readerChapterPages.length === 0 && <EmptyState title="Aucune page chargée" text="Aucune page n’a été renvoyée par MangaDex pour ce chapitre. Essaie un autre chapitre ou change la qualité." />}
             <div className="reader-bottom-navigation">
-              <button className="secondary-button" disabled={readerChapterIndex <= 0 || readerLoading} onClick={() => { const chapter = readerChapters[readerChapterIndex - 1]; if (chapter) void openDemoChapter(chapter.mangaDexChapterId, chapter.title); }}>← Chapitre précédent</button>
+              <button className="secondary-button" disabled={readerChapterIndex <= 0 || readerLoading} onClick={() => { const chapter = readerChapters[readerChapterIndex - 1]; if (chapter) void openChapter(chapter.mangaDexChapterId, chapter.title); }}>← Chapitre précédent</button>
               <span>{currentReaderChapter?.scanlationGroup ? "Groupe : " + currentReaderChapter.scanlationGroup : "Source : MangaDex"}</span>
-              <button className="secondary-button" disabled={readerChapterIndex < 0 || readerChapterIndex >= readerChapters.length - 1 || readerLoading} onClick={() => { const chapter = readerChapters[readerChapterIndex + 1]; if (chapter) void openDemoChapter(chapter.mangaDexChapterId, chapter.title); }}>Chapitre suivant →</button>
+              <button className="secondary-button" disabled={readerChapterIndex < 0 || readerChapterIndex >= readerChapters.length - 1 || readerLoading} onClick={() => { const chapter = readerChapters[readerChapterIndex + 1]; if (chapter) void openChapter(chapter.mangaDexChapterId, chapter.title); }}>Chapitre suivant →</button>
             </div>
-            <p className="reader-credit">Mode développement : aucune page ou source de lecture externe n’est chargée.</p>
+            <p className="reader-credit">Les pages sont fournies par MangaDex@Home. Leur disponibilité dépend du chapitre et du réseau.</p>
           </section>
         )}
 
         {screen !== "reader" && (
           <section className="source-section page-section">
-            <div className="source-copy"><span className="section-kicker">SOURCE UNIQUE</span><h2>Manga et manhwa.<br /><span>Interface en mode local.</span></h2><p>KOVA affiche des données fictives locales pour tester le catalogue et la navigation. Les chapitres et pages en ligne sont désactivés pendant cette phase.</p></div>
+            <div className="source-copy"><span className="section-kicker">CATALOGUE CONNECTÉ</span><h2>MangaDex en direct.<br /><span>Une lecture intégrée.</span></h2><p>KOVA récupère les fiches, chapitres et pages depuis MangaDex. Les résultats varient selon les langues disponibles, les traductions publiées et la connexion.</p></div>
             <div className="official-links"><div className="official-reading-note"><span className="official-icon">M</span><span><strong>Catalogue local</strong><small>Catalogue et pages affichés dans KOVA, sans quitter le site</small></span><ShieldCheck size={16} /></div></div>
           </section>
         )}
@@ -1663,7 +1663,7 @@ export default function App() {
             <div className="setting-row"><span className="setting-icon"><LibraryBig size={18} /></span><span><strong>Bibliothèque synchronisée</strong><small>{user ? "Enregistrée dans ton compte Firebase." : "Connecte-toi pour retrouver tes séries."}</small></span><span className="setting-state">{user ? "EN LIGNE" : "HORS SESSION"}</span></div>
             <div className="setting-row"><span className="setting-icon"><UserRound size={18} /></span><span><strong>Données de profil</strong><small>Les champs restent privés selon les règles Firestore du compte.</small></span><span className="setting-state">PRIVÉ</span></div>
           </div>
-          <p className="modal-footnote">Les données de cette maquette sont fictives. Les intégrations de contenu externe sont désactivées pendant le travail sur l’interface.</p>
+          <p className="modal-footnote">Les fiches viennent de sources publiques. Firebase gère la session et les données de compte, sous réserve de la configuration active du projet.</p>
         </Modal>
       )}
 
@@ -1700,7 +1700,7 @@ export default function App() {
                   {(selectedItem.chapters ?? []).slice(0, chapterVisibleCount).map((chapter) => (
                     <div className="mangadex-chapter-row" key={chapter.mangaDexChapterId}>
                       <span>{chapter.title}{chapter.scanlationGroup && <small className="chapter-attribution">Traduction : {chapter.scanlationGroup}</small>}</span>
-                      <button className="secondary-button" onClick={() => void openDemoChapter(chapter.mangaDexChapterId, chapter.title)} disabled={readerLoading && readerChapterId === chapter.mangaDexChapterId}>
+                      <button className="secondary-button" onClick={() => void openChapter(chapter.mangaDexChapterId, chapter.title)} disabled={readerLoading && readerChapterId === chapter.mangaDexChapterId}>
                         {readerLoading && readerChapterId === chapter.mangaDexChapterId ? "Chargement…" : "Lire"}
                       </button>
                     </div>
