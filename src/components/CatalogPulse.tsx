@@ -16,7 +16,7 @@ function MiniCard({
     <article className="media-card">
       <button className="media-open" onClick={() => onOpen(item)} aria-label={"Ouvrir la fiche de " + item.title}>
         <span className="cover-wrap">
-          {item.cover ? <img src={item.cover} alt="" loading="lazy" decoding="async" /> : <span className="cover-placeholder"><BookOpen size={23} /><span>KOVA</span></span>}
+          {item.cover ? <img className="media-cover" src={item.cover} alt="" loading="lazy" decoding="async" /> : <span className="cover-placeholder"><BookOpen size={23} /><span>KOVA</span></span>}
           <span className="cover-gradient" />
           <span className="media-kind">{item.kind.toUpperCase()}</span>
         </span>
