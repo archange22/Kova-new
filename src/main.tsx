@@ -9,6 +9,8 @@ import "./styles-manga-home.css";
 import "./styles-auth-support.css";
 import "./styles-layout-routes.css";
 import "./styles-experience.css";
+import "./styles-anime.css";
+import "./styles-reader.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

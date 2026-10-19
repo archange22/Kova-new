@@ -54,8 +54,7 @@ export type CatalogPage = {
 const API = "https://api.mangadex.org";
 const PAGE_SIZE = 18;
 const COVER_BASE = "https://uploads.mangadex.org/covers";
-const SAFE_RATINGS = ["safe", "suggestive"];
-const LANGUAGES = ["fr", "en"];
+const SAFE_RATINGS = ["safe"];
 
 type MdRelationship = { id: string; type: string; attributes?: Record<string, unknown> };
 type MdManga = {
@@ -148,8 +147,7 @@ export async function fetchCatalog(
   params.set("limit", String(PAGE_SIZE));
   params.set("offset", String(Math.max(0, offset)));
   params.set("includes[]", "cover_art");
-  params.set("contentRating[]", SAFE_RATINGS[0]);
-  params.append("contentRating[]", SAFE_RATINGS[1]);
+  SAFE_RATINGS.forEach((rating) => params.append("contentRating[]", rating));
   params.set("order[relevance]", "desc");
   params.set("order[followedCount]", "desc");
   params.set("hasAvailableChapters", "true");
@@ -176,7 +174,7 @@ export async function fetchCatalog(
 }
 
 /** Fetch real MangaDex chapters. Prefer French releases, then English if French is unavailable. */
-export async function fetchDemoChapters(
+export async function fetchChapters(
   mangaId: string,
   offset = 0,
   signal?: AbortSignal,
@@ -220,7 +218,7 @@ export async function fetchDemoChapters(
 }
 
 /** Get the real MangaDex reader page URLs using its at-home endpoint. */
-export async function fetchDemoChapterPages(
+export async function fetchChapterPages(
   chapterId: string,
   quality: "data" | "data-saver" = "data-saver",
   signal?: AbortSignal,

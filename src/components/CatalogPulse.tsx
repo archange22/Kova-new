@@ -16,14 +16,14 @@ function MiniCard({
     <article className="media-card">
       <button className="media-open" onClick={() => onOpen(item)} aria-label={"Ouvrir la fiche de " + item.title}>
         <span className="cover-wrap">
-          <span className="cover-placeholder"><BookOpen size={23} /><span>KOVA</span></span>
+          {item.cover ? <img className="media-cover" src={item.cover} alt="" loading="lazy" decoding="async" /> : <span className="cover-placeholder"><BookOpen size={23} /><span>KOVA</span></span>}
           <span className="cover-gradient" />
           <span className="media-kind">{item.kind.toUpperCase()}</span>
         </span>
         <span className="media-card-copy">
           <strong className="media-title">{item.title}</strong>
           <span className="media-meta">{item.year ?? "Année inconnue"} · {item.status ?? "Démo"}</span>
-          <span className="media-source">Fiche de démonstration</span>
+          <span className="media-source">MangaDex · catalogue public</span>
         </span>
       </button>
       <button className={saved ? "save-chip is-saved" : "save-chip"} onClick={() => onSave(item)} aria-label={saved ? "Déjà dans la bibliothèque" : "Ajouter à la bibliothèque"}>
@@ -70,32 +70,32 @@ export default function CatalogPulse({
   }, [refresh]);
 
   return (
-    <section className="page-section catalog-pulse" aria-label="Sélection de démonstration KOVA">
+    <section className="page-section catalog-pulse" aria-label="Sélection de mangas et manhwas MangaDex">
       <div className="section-heading pulse-main-heading">
         <div>
-          <span className="section-kicker"><Sparkles size={13} /> MODE DÉVELOPPEMENT</span>
+          <span className="section-kicker"><Sparkles size={13} /> DÉCOUVERTES MANGADEX</span>
           <h2>Explore les univers KOVA<span className="purple-period">.</span></h2>
-          <p>Des fiches fictives locales pour travailler la disposition, les filtres et la navigation sans dépendre d’API de contenu.</p>
+          <p>Des fiches issues du catalogue MangaDex, regroupées pour découvrir des mangas et des manhwas.</p>
         </div>
         <button className="text-link" onClick={() => setRefresh((value) => value + 1)} disabled={loading}><RefreshCw size={15} /> Réinitialiser</button>
       </div>
 
       <div className="pulse-rank-grid">
         <section className="pulse-panel">
-          <div className="pulse-panel-heading"><div><span className="section-kicker">DÉMONSTRATION</span><h3>Mangas</h3></div><span className="pulse-live-dot">LOCAL</span></div>
-          {loading ? <div className="pulse-empty">Préparation des fiches locales…</div> : <div className="media-grid pulse-media-grid">{manga.map((item) => <MiniCard key={item.id} item={item} saved={savedIds.has(item.id)} onOpen={onOpen} onSave={onSave} />)}</div>}
+          <div className="pulse-panel-heading"><div><span className="section-kicker">CATALOGUE PUBLIC</span><h3>Mangas</h3></div><span className="pulse-live-dot">MANGADEX</span></div>
+          {loading ? <div className="pulse-empty">Chargement du catalogue MangaDex…</div> : <div className="media-grid pulse-media-grid">{manga.map((item) => <MiniCard key={item.id} item={item} saved={savedIds.has(item.id)} onOpen={onOpen} onSave={onSave} />)}</div>}
         </section>
         <section className="pulse-panel">
-          <div className="pulse-panel-heading"><div><span className="section-kicker">DÉMONSTRATION</span><h3>Manhwas</h3></div><span className="pulse-live-dot">LOCAL</span></div>
-          {loading ? <div className="pulse-empty">Préparation des fiches locales…</div> : <div className="media-grid pulse-media-grid">{manhwa.map((item) => <MiniCard key={item.id} item={item} saved={savedIds.has(item.id)} onOpen={onOpen} onSave={onSave} />)}</div>}
+          <div className="pulse-panel-heading"><div><span className="section-kicker">CATALOGUE PUBLIC</span><h3>Manhwas</h3></div><span className="pulse-live-dot">MANGADEX</span></div>
+          {loading ? <div className="pulse-empty">Chargement du catalogue MangaDex…</div> : <div className="media-grid pulse-media-grid">{manhwa.map((item) => <MiniCard key={item.id} item={item} saved={savedIds.has(item.id)} onOpen={onOpen} onSave={onSave} />)}</div>}
         </section>
       </div>
 
       <section className="pulse-panel pulse-wide">
-        <div className="pulse-panel-heading"><div><span className="section-kicker"><CalendarDays size={13} /> À VENIR</span><h3>Calendrier de démonstration</h3><p>Le calendrier est gardé dans l’interface, prêt à recevoir une source quand le système sera stabilisé.</p></div><span className="pulse-count">MODE UI</span></div>
-        <div className="pulse-empty"><CalendarDays size={22} /><strong>Aucune date réelle chargée.</strong><span>Les intégrations de catalogue et de chapitres sont volontairement désactivées pour cette phase de développement.</span><ArrowRight size={16} /></div>
+        <div className="pulse-panel-heading"><div><span className="section-kicker"><CalendarDays size={13} /> À VENIR</span><h3>Calendrier de démonstration</h3><p>Le calendrier reste une interface préparatoire : les dates de sorties ne sont pas encore connectées à une source.</p></div><span className="pulse-count">MODE UI</span></div>
+        <div className="pulse-empty"><CalendarDays size={22} /><strong>Aucune date réelle chargée.</strong><span>Les dates de sorties ne sont pas encore chargées. Le catalogue MangaDex, lui, est déjà connecté.</span><ArrowRight size={16} /></div>
       </section>
-      <p className="catalog-note"><BookOpen size={15} /> Les titres présentés ici sont fictifs. Firebase reste actif pour les comptes, la bibliothèque et le support.</p>
+      <p className="catalog-note"><BookOpen size={15} /> Les fiches proviennent de MangaDex. Firebase gère les comptes, la bibliothèque et le support.</p>
     </section>
   );
 }
