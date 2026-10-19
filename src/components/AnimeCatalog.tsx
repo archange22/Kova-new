@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import { CalendarDays, Clapperboard, Play, Search, Star } from "lucide-react";
 import { fetchAnimeCatalog, type AnimeCatalogItem, type AnimeCatalogPage } from "../lib/anime";
 
@@ -43,7 +44,7 @@ export default function AnimeCatalog() {
     };
   }, [searchTerm, page, retryKey]);
 
-  function submitSearch(event: React.FormEvent<HTMLFormElement>) {
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSearchTerm(query.trim());
     setPage(1);
