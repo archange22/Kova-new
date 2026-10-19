@@ -1367,17 +1367,22 @@ export default function App() {
               {readerChapterId && <span className="reader-in-site-label"><ShieldCheck size={15} /> Lecture intégrée dans KOVA</span>}
             </div>
             <div className="reader-page-controls">
-              <button className="secondary-button" onClick={() => void switchReaderQuality(readerQuality === "data-saver" ? "data" : "data-saver")} disabled={readerLoading}>
-                {readerQuality === "data-saver" ? "Mode Éco actif · Passer en HQ" : "HQ actif · Passer en Éco"}
-              </button>
-              <span>{readerQuality === "data-saver" ? "Images compressées pour économiser les données mobiles." : "Images d'origine, plus gourmandes en données."}</span>
+              <div className="reader-quality-control">
+                <span className="reader-quality-label">QUALITÉ DU LECTEUR</span>
+                <div className="reader-quality-options" role="group" aria-label="Qualité des pages du lecteur">
+                  <button type="button" className={readerQuality === "eco" ? "secondary-button quality-selected" : "secondary-button"} aria-pressed={readerQuality === "eco"} onClick={() => void switchReaderQuality("eco")} disabled={readerLoading}>Éco</button>
+                  <button type="button" className={readerQuality === "standard" ? "secondary-button quality-selected" : "secondary-button"} aria-pressed={readerQuality === "standard"} onClick={() => void switchReaderQuality("standard")} disabled={readerLoading}>Standard</button>
+                  <button type="button" className={readerQuality === "super" ? "secondary-button quality-selected" : "secondary-button"} aria-pressed={readerQuality === "super"} onClick={() => void switchReaderQuality("super")} disabled={readerLoading}>Super</button>
+                </div>
+              </div>
+              <span>{readerQuality === "eco" ? "Images compactes, pensées pour économiser les données mobiles." : readerQuality === "standard" ? "Images d’origine, qualité maximale fournie par MangaDex." : "Images d’origine avec chargement anticipé. Aucune résolution supérieure n’est disponible via cette source."}</span>
               {readerChapterPages.length > 0 && <span>{readerChapterPages.length} pages</span>}
             </div>
             {readerError && <div className="reader-error"><p>{readerError}</p><button className="secondary-button" onClick={() => void openDemoChapter(readerChapterId, readerChapterTitle)}>Réessayer</button></div>}
             {readerLoading && <LoadingState text="Chargement des pages depuis MangaDex…" />}
             {!readerLoading && readerChapterPages.length > 0 && (
               <div className="mangadex-pages full-reader-pages">
-                {readerChapterPages.map((pageUrl, pageIndex) => <img key={pageUrl} src={pageUrl} alt={"Page " + (pageIndex + 1) + " · " + readerChapterTitle} loading={pageIndex < 2 ? "eager" : "lazy"} />)}
+                {readerChapterPages.map((pageUrl, pageIndex) => <img key={pageUrl} src={pageUrl} alt={"Page " + (pageIndex + 1) + " · " + readerChapterTitle} loading={readerQuality === "super" && pageIndex < 4 ? "eager" : pageIndex < 2 ? "eager" : "lazy"} decoding="async" fetchPriority={readerQuality === "super" && pageIndex < 2 ? "high" : "auto"} />)}
               </div>
             )}
             {!readerLoading && !readerError && readerChapterPages.length === 0 && <EmptyState title="Aucune page chargée" text="Aucune page n’a été renvoyée par MangaDex pour ce chapitre. Essaie un autre chapitre ou change la qualité." />}
