@@ -54,7 +54,7 @@ export type CatalogPage = {
 const API = "https://api.mangadex.org";
 const PAGE_SIZE = 18;
 const COVER_BASE = "https://uploads.mangadex.org/covers";
-const SAFE_RATINGS = ["safe", "suggestive"];
+const SAFE_RATINGS = ["safe"];
 
 type MdRelationship = { id: string; type: string; attributes?: Record<string, unknown> };
 type MdManga = {
@@ -147,8 +147,7 @@ export async function fetchCatalog(
   params.set("limit", String(PAGE_SIZE));
   params.set("offset", String(Math.max(0, offset)));
   params.set("includes[]", "cover_art");
-  params.set("contentRating[]", SAFE_RATINGS[0]);
-  params.append("contentRating[]", SAFE_RATINGS[1]);
+  SAFE_RATINGS.forEach((rating) => params.append("contentRating[]", rating));
   params.set("order[relevance]", "desc");
   params.set("order[followedCount]", "desc");
   params.set("hasAvailableChapters", "true");
