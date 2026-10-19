@@ -92,8 +92,8 @@ export default function CatalogPulse({
       </div>
 
       <section className="pulse-panel pulse-wide">
-        <div className="pulse-panel-heading"><div><span className="section-kicker"><CalendarDays size={13} /> À VENIR</span><h3>Calendrier de démonstration</h3><p>Le calendrier est gardé dans l’interface, prêt à recevoir une source quand le système sera stabilisé.</p></div><span className="pulse-count">MODE UI</span></div>
-        <div className="pulse-empty"><CalendarDays size={22} /><strong>Aucune date réelle chargée.</strong><span>Les intégrations de catalogue et de chapitres sont volontairement désactivées pour cette phase de développement.</span><ArrowRight size={16} /></div>
+        <div className="pulse-panel-heading"><div><span className="section-kicker"><CalendarDays size={13} /> À VENIR</span><h3>Calendrier de démonstration</h3><p>Le calendrier reste une interface préparatoire : les dates de sorties ne sont pas encore connectées à une source.</p></div><span className="pulse-count">MODE UI</span></div>
+        <div className="pulse-empty"><CalendarDays size={22} /><strong>Aucune date réelle chargée.</strong><span>Les dates de sorties ne sont pas encore chargées. Le catalogue MangaDex, lui, est déjà connecté.</span><ArrowRight size={16} /></div>
       </section>
       <p className="catalog-note"><BookOpen size={15} /> Les fiches proviennent de MangaDex. Firebase gère les comptes, la bibliothèque et le support.</p>
     </section>
