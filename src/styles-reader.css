@@ -1,0 +1,11 @@
+.reader-quality-control { display: flex; flex-direction: column; gap: 7px; }
+.reader-quality-label { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .12em; }
+.reader-quality-options { display: flex; flex-wrap: wrap; gap: 7px; }
+.reader-quality-options .secondary-button { min-height: 36px; padding: 0 15px; border-radius: 999px; }
+.reader-quality-options .quality-selected { border-color: rgba(181,154,255,.72); background: linear-gradient(110deg, rgba(173,137,255,.24), rgba(126,77,219,.2)); color: #f0e8ff; box-shadow: 0 0 0 2px rgba(142,91,245,.08); }
+.reader-quality-options button:disabled { opacity: .58; cursor: wait; }
+@media (max-width: 540px) {
+  .reader-quality-control { width: 100%; }
+  .reader-quality-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .reader-quality-options .secondary-button { width: 100%; padding: 0 8px; }
+}
