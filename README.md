@@ -1,6 +1,6 @@
 # KOVA
 
-KOVA est une interface mobile et ordinateur, en français, consacrée aux **mangas japonais et manhwas coréens**. Le catalogue provient directement de l'API publique MangaDex, et les chapitres disponibles en français ou en anglais s'ouvrent dans un lecteur intégré.
+KOVA est une plateforme mobile et ordinateur, en français, pour découvrir des **mangas, manhwas et fiches Anime**. Les fiches Manga/Manhwa et chapitres lisibles proviennent de l'API publique MangaDex ; le catalogue Anime utilise Jikan pour les métadonnées.
 
 ## Fonctionnalités
 
@@ -72,7 +72,7 @@ Le catalogue Anime utilise Jikan v4 pour rechercher des fiches, résumés, image
 
 KOVA interroge directement `https://api.mangadex.org` pour rechercher les séries et obtenir la liste de chapitres. Le lecteur utilise ensuite les URL temporaires renvoyées par MangaDex@Home; les images ne sont pas copiées dans le dépôt KOVA.
 
-Les classifications autres que **Safe** sont exclues. Les chapitres proposés sont filtrés sur le français et l'anglais, les liens de lecture externes et les chapitres sans pages étant ignorés.
+Seules les œuvres classées **Safe** sont demandées au catalogue MangaDex. Les chapitres proposés sont filtrés sur le français et l'anglais, les liens de lecture externes et les chapitres sans pages étant ignorés.
 
 MangaDex demande aux projets utilisant son API de créditer MangaDex et les groupes de traduction, de respecter les demandes de retrait, et de ne pas proposer de publicités ou de services payants. Voir la [politique officielle d'utilisation de l'API MangaDex](https://gitlab.com/mangadex-pub/mangadex-api-docs/-/blob/main/index.md). La présence d'un titre dans son catalogue n'est pas, à elle seule, une garantie que chaque traduction dispose de tous les droits de publication. Le projet doit respecter la politique de MangaDex et les retraits demandés par les groupes.
 
