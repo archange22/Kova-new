@@ -71,6 +71,7 @@ type Profile = {
 };
 
 type LibraryStatus = "to_read" | "reading" | "completed" | "paused" | "dropped";
+type ReaderQuality = "eco" | "standard" | "super";
 type LibraryEntry = CatalogItem & { libraryStatus: LibraryStatus };
 
 type SupportStatus = "open" | "in_progress" | "resolved" | "closed";
@@ -95,6 +96,11 @@ type SupportTicket = {
   createdAt?: { toMillis?: () => number };
   updatedAt?: { toMillis?: () => number };
 };
+
+function mangaDexImageQuality(quality: ReaderQuality): "data" | "data-saver" {
+  // MangaDex offers compact or original images; Super can prioritize loading, not invent higher resolution.
+  return quality === "eco" ? "data-saver" : "data";
+}
 
 const OWNER_UID = "fL5Gz1lTOUY11JRu14KHKcDD95q1";
 
@@ -370,7 +376,7 @@ export default function App() {
   const [readerChapterPages, setReaderChapterPages] = useState<string[]>([]);
   const [readerChapterId, setReaderChapterId] = useState("");
   const [readerChapterTitle, setReaderChapterTitle] = useState("");
-  const [readerQuality, setReaderQuality] = useState<"data" | "data-saver">("data-saver");
+  const [readerQuality, setReaderQuality] = useState<ReaderQuality>("eco");
   const [chapterListLoading, setChapterListLoading] = useState(false);
   const [chapterListError, setChapterListError] = useState("");
   const [chapterPageOffset, setChapterPageOffset] = useState(0);
@@ -850,7 +856,7 @@ export default function App() {
     setMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
     try {
-      const pages = await fetchDemoChapterPages(chapterId, readerQuality);
+      const pages = await fetchDemoChapterPages(chapterId, mangaDexImageQuality(readerQuality));
       if (requestId !== readerPagesRequestId.current) return;
       setReaderChapterPages(pages);
     } catch (error) {
@@ -861,7 +867,7 @@ export default function App() {
     }
   }
 
-  async function switchReaderQuality(nextQuality: "data" | "data-saver") {
+  async function switchReaderQuality(nextQuality: ReaderQuality) {
     setReaderQuality(nextQuality);
     if (!readerChapterId) return;
     const chapterId = readerChapterId;
@@ -869,7 +875,7 @@ export default function App() {
     setReaderLoading(true);
     setReaderError("");
     try {
-      const pages = await fetchDemoChapterPages(chapterId, nextQuality);
+      const pages = await fetchDemoChapterPages(chapterId, mangaDexImageQuality(nextQuality));
       if (requestId !== readerPagesRequestId.current) return;
       setReaderChapterPages(pages);
     } catch (error) {
