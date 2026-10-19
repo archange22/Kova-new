@@ -553,7 +553,7 @@ export default function App() {
     try {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
-      const result = await signInWithPopup(auth, provider);
+      await signInWithPopup(auth, provider);
       // onAuthStateChanged initializes the private and public profile exactly once.
       setPassword("");
       setPasswordVisible(false);
